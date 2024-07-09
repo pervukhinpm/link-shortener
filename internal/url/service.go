@@ -1,10 +1,11 @@
 package url
 
 import (
-	"crypto/sha1"
-	"encoding/hex"
+	"crypto/rand"
+	"encoding/base64"
 	"github.com/pervukhinpm/link-shortener.git/domain"
 	"github.com/pervukhinpm/link-shortener.git/internal/repository"
+	"strings"
 )
 
 type Service struct {
@@ -16,9 +17,12 @@ func NewURLService(repo repository.Repository) *Service {
 }
 
 func (u *Service) Shorten(original string) (*domain.URL, error) {
-	hash := sha1.New()
-	hash.Write([]byte(original))
-	short := hex.EncodeToString(hash.Sum(nil))[:8]
+	randomBytes := make([]byte, 6)
+	if _, err := rand.Read(randomBytes); err != nil {
+		panic(err)
+	}
+	short := base64.URLEncoding.EncodeToString(randomBytes)
+	short = strings.TrimRight(short, "=")
 	url := domain.NewURL(short, original)
 	if err := u.repo.Add(url); err != nil {
 		return nil, err
