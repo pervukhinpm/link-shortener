@@ -68,7 +68,7 @@ func TestCreateShortenerURL(t *testing.T) {
 			req.Body = io.NopCloser(strings.NewReader(string(buf)))
 
 			rr := httptest.NewRecorder()
-			h.ServeHTTP(rr, req)
+			h.CreateShortenerURL(rr, req)
 
 			if status := rr.Code; status != tt.want.statusCode {
 				t.Errorf("handler returned wrong status code: got %v want %v",
@@ -137,7 +137,7 @@ func TestGetShortenerURL(t *testing.T) {
 			}
 
 			rr := httptest.NewRecorder()
-			h.ServeHTTP(rr, req)
+			h.GetShortenerURL(rr, req)
 
 			if status := rr.Code; status != tt.want.statusCode {
 				t.Errorf("handler returned wrong status code: got %v want %v",

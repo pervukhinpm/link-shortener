@@ -2,28 +2,24 @@ package api
 
 import (
 	"fmt"
+	"github.com/go-chi/chi/v5"
 	"github.com/pervukhinpm/link-shortener.git/internal/url"
 	"io"
 	"net/http"
 	"strings"
 )
 
-type Handler struct {
+type ShortenerHandler struct {
 	urlService url.ShortenerServiceReaderWriter
 }
 
-func NewHandler(urlService url.ShortenerServiceReaderWriter) *http.ServeMux {
-	handler := &Handler{
+func NewHandler(urlService url.ShortenerServiceReaderWriter) *ShortenerHandler {
+	return &ShortenerHandler{
 		urlService: urlService,
 	}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /", handler.createShortenerURL)
-	mux.HandleFunc("GET /{id}", handler.getShortenerURL)
-	return mux
 }
 
-func (h *Handler) createShortenerURL(w http.ResponseWriter, r *http.Request) {
+func (h *ShortenerHandler) CreateShortenerURL(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST requests are allowed!", http.StatusBadRequest)
 		return
@@ -60,13 +56,12 @@ func (h *Handler) createShortenerURL(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) getShortenerURL(w http.ResponseWriter, r *http.Request) {
+func (h *ShortenerHandler) GetShortenerURL(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Only GET requests are allowed!", http.StatusBadRequest)
 		return
 	}
-
-	shortID := r.PathValue("id")
+	shortID := chi.URLParam(r, "id")
 
 	origURL, err := h.urlService.Find(shortID)
 
