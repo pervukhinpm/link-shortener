@@ -6,7 +6,7 @@ import (
 )
 
 type MockShortenerService struct {
-	ShortenUrl *domain.URL
+	ShortenURL *domain.URL
 }
 
 func NewMockService() *MockShortenerService {
@@ -14,15 +14,15 @@ func NewMockService() *MockShortenerService {
 }
 
 func (u *MockShortenerService) Shorten(original string) (*domain.URL, error) {
-	if u.ShortenUrl == nil {
+	if u.ShortenURL == nil {
 		return nil, errors.New("shorten url not found")
 	}
-	return u.ShortenUrl, nil
+	return u.ShortenURL, nil
 }
 
 func (u *MockShortenerService) Find(id string) (*domain.URL, error) {
-	if u.ShortenUrl == nil {
+	if u.ShortenURL == nil {
 		return nil, errors.New("shorten url not found")
 	}
-	return u.ShortenUrl, nil
+	return u.ShortenURL, nil
 }
