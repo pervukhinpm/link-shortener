@@ -45,10 +45,7 @@ func main() {
 	// выводим код ответа
 	fmt.Println("Статус-код ", response.Status)
 	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			panic(err)
-		}
+		Body.Close()
 	}(response.Body)
 	// читаем поток из тела ответа
 	body, err := io.ReadAll(response.Body)
