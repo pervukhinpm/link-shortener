@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"github.com/pervukhinpm/link-shortener.git/domain"
 	"github.com/pervukhinpm/link-shortener.git/internal/url"
 	"io"
@@ -53,7 +52,7 @@ func TestCreateShortenerURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := strings.NewReader(tt.want.bodyURL)
-			req, err := http.NewRequest(http.MethodPost, "/", body)
+			req, err := http.NewRequest(http.MethodPost, "http://localhost:8080/", body)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -87,10 +86,10 @@ func TestCreateShortenerURL(t *testing.T) {
 			}
 
 			if tt.want.response != "" {
-				wantResponse := fmt.Sprintf("http://%s/%s", req.Host, tt.urlServiceShortID)
-				if rr.Body.String() != wantResponse {
+				response := rr.Body.String()
+				if response != tt.want.response {
 					t.Errorf("handler returned unexpected body: got %v want %v",
-						rr.Body.String(), wantResponse)
+						rr.Body.String(), tt.want.response)
 				}
 			}
 		})
