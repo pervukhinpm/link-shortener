@@ -8,15 +8,20 @@ import (
 	"strings"
 )
 
-type Service struct {
+type ShortenerServiceReaderWriter interface {
+	Find(id string) (*domain.URL, error)
+	Shorten(original string) (*domain.URL, error)
+}
+
+type ShortenerService struct {
 	repo repository.Repository
 }
 
-func NewURLService(repo repository.Repository) *Service {
-	return &Service{repo: repo}
+func NewURLService(repo repository.Repository) *ShortenerService {
+	return &ShortenerService{repo: repo}
 }
 
-func (u *Service) Shorten(original string) (*domain.URL, error) {
+func (u *ShortenerService) Shorten(original string) (*domain.URL, error) {
 	randomBytes := make([]byte, 6)
 	if _, err := rand.Read(randomBytes); err != nil {
 		panic(err)
@@ -30,7 +35,7 @@ func (u *Service) Shorten(original string) (*domain.URL, error) {
 	return url, nil
 }
 
-func (u *Service) Find(id string) (*domain.URL, error) {
+func (u *ShortenerService) Find(id string) (*domain.URL, error) {
 	url, err := u.repo.Get(id)
 	if err != nil {
 		return nil, err

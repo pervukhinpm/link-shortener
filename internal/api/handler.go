@@ -9,10 +9,10 @@ import (
 )
 
 type Handler struct {
-	urlService *url.Service
+	urlService url.ShortenerServiceReaderWriter
 }
 
-func NewHandler(urlService *url.Service) *http.ServeMux {
+func NewHandler(urlService url.ShortenerServiceReaderWriter) *http.ServeMux {
 	handler := &Handler{
 		urlService: urlService,
 	}
