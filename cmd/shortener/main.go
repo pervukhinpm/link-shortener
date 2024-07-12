@@ -12,7 +12,7 @@ func main() {
 	config.ParseFlags()
 	inMemoryRepository := repository.NewInMemoryRepository()
 	urlService := url.NewURLService(inMemoryRepository)
-	httpHandler := api.NewHandler(urlService, &config.ServerConfig.BaseUrl)
+	httpHandler := api.NewHandler(urlService, &config.ServerConfig.BaseURL)
 	server := api.NewServer(&config.ServerConfig.ServerAddress, httpHandler)
 	log.Fatal(server.Start())
 }
