@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"github.com/pervukhinpm/link-shortener.git/internal/api"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -19,6 +20,14 @@ func ParseFlags() {
 	flag.StringVar(&flagServerAddress, "a", "localhost:8080", "Host Port")
 	flag.StringVar(&flagBaseURL, "b", "http://localhost:8080/", "Base URL")
 	flag.Parse()
+
+	if envServerAddressEnv := os.Getenv("SERVER_ADDR"); envServerAddressEnv != "" {
+		flagServerAddress = envServerAddressEnv
+	}
+
+	if baseURLEnv := os.Getenv("BASE_URL"); baseURLEnv != "" {
+		flagBaseURL = baseURLEnv
+	}
 
 	ServerConfig.ServerAddress = *parseServerURL(flagServerAddress)
 	ServerConfig.BaseURL = *parseServerURL(flagBaseURL)
