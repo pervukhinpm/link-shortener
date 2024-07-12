@@ -1,19 +1,21 @@
 package api
 
-import "net/http"
+import (
+	"net/http"
+)
 
 type Server struct {
 	shortenerHandler *ShortenerHandler
-	listenPort       string
+	serverURL        *ServerURL
 }
 
-func NewServer(listenPort string, handler *ShortenerHandler) *Server {
+func NewServer(serverURL *ServerURL, handler *ShortenerHandler) *Server {
 	return &Server{
 		shortenerHandler: handler,
-		listenPort:       listenPort,
+		serverURL:        serverURL,
 	}
 }
 
 func (s *Server) Start() error {
-	return http.ListenAndServe(s.listenPort, s.shortenerHandler.useRoutes())
+	return http.ListenAndServe(s.serverURL.String(), s.shortenerHandler.useRoutes())
 }

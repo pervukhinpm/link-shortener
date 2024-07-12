@@ -11,11 +11,13 @@ import (
 
 type ShortenerHandler struct {
 	urlService url.ShortenerServiceReaderWriter
+	baseURL    *ServerURL
 }
 
-func NewHandler(urlService url.ShortenerServiceReaderWriter) *ShortenerHandler {
+func NewHandler(urlService url.ShortenerServiceReaderWriter, baseURL *ServerURL) *ShortenerHandler {
 	return &ShortenerHandler{
 		urlService: urlService,
+		baseURL:    baseURL,
 	}
 }
 
@@ -50,7 +52,7 @@ func (h *ShortenerHandler) CreateShortenerURL(w http.ResponseWriter, r *http.Req
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	_, err = fmt.Fprintf(w, "http://%s/%s", r.Host, shortURL.ID)
+	_, err = fmt.Fprintf(w, "%s/%s", h.baseURL.String(), shortURL.ID)
 	if err != nil {
 		return
 	}
