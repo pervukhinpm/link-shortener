@@ -3,6 +3,8 @@ package config
 import (
 	"flag"
 	"github.com/pervukhinpm/link-shortener.git/internal/api"
+	"net/url"
+	"strconv"
 )
 
 var ServerConfig struct {
@@ -11,32 +13,42 @@ var ServerConfig struct {
 }
 
 func ParseFlags() {
-	flag.Var(
-		&ServerConfig.ServerAddress,
-		"a",
-		"Host Port",
-	)
-	flag.Var(
-		&ServerConfig.BaseUrl,
-		"b",
-		"Base URL",
-	)
+	var flagServerAddress string
+	var flagBaseURL string
+
+	flag.StringVar(&flagServerAddress, "a", "localhost:8080", "Host Port")
+	flag.StringVar(&flagBaseURL, "b", "http://localhost:8080/", "Base URL")
 	flag.Parse()
 
-	setDefaultServerAddress()
-	setDefaultBaseURL()
+	ServerConfig.ServerAddress = *parseServerURL(flagServerAddress)
+	ServerConfig.BaseUrl = *parseServerURL(flagBaseURL)
 }
 
-func setDefaultServerAddress() {
-	if ServerConfig.ServerAddress.String() == "" {
-		serverURL := *api.NewServerURL("", "localhost", 8080)
-		ServerConfig.ServerAddress = serverURL
+func parseServerURL(rawURL string) *api.ServerURL {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		panic(err)
 	}
-}
 
-func setDefaultBaseURL() {
-	if ServerConfig.ServerAddress.String() == "" {
-		serverURL := *api.NewServerURL("http", "localhost", 8080)
-		ServerConfig.ServerAddress = serverURL
+	host := u.Hostname()
+	if host == "" {
+		host = "localhost"
 	}
+
+	port := u.Port()
+	if port == "" {
+		port = "8080"
+	}
+
+	portInt, err := strconv.Atoi(port)
+	if err != nil {
+		portInt = 8080
+	}
+
+	scheme := u.Scheme
+	if scheme == "" {
+		scheme = ""
+	}
+
+	return api.NewServerURL(scheme, host, portInt)
 }

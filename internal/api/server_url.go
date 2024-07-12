@@ -21,10 +21,13 @@ func NewServerURL(scheme string, host string, port int) *ServerURL {
 }
 
 func (s *ServerURL) String() string {
-	if s.Port == 0 {
-		return fmt.Sprintf("%s://%s", s.Scheme, s.Host)
+	if s.Scheme != "" && s.Host != "" && s.Port != 0 {
+		return fmt.Sprintf("%s://%s:%d", s.Scheme, s.Host, s.Port)
 	}
-	return fmt.Sprintf("%s://%s:%d", s.Scheme, s.Host, s.Port)
+	if s.Scheme == "" && s.Host != "" && s.Port != 0 {
+		return fmt.Sprintf("%s:%d", s.Host, s.Port)
+	}
+	return ""
 }
 
 func (s *ServerURL) Set(value string) error {

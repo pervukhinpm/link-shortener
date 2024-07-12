@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 )
 
@@ -17,5 +18,5 @@ func NewServer(serverURL *ServerURL, handler *ShortenerHandler) *Server {
 }
 
 func (s *Server) Start() error {
-	return http.ListenAndServe(s.serverURL.String(), s.shortenerHandler.useRoutes())
+	return http.ListenAndServe(fmt.Sprintf(":%d", s.serverURL.Port), s.shortenerHandler.useRoutes())
 }

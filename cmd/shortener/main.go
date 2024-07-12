@@ -10,7 +10,6 @@ import (
 
 func main() {
 	config.ParseFlags()
-
 	inMemoryRepository := repository.NewInMemoryRepository()
 	urlService := url.NewURLService(inMemoryRepository)
 	httpHandler := api.NewHandler(urlService, &config.ServerConfig.BaseUrl)
