@@ -22,6 +22,9 @@ func ParseFlags() {
 		"Base URL",
 	)
 	flag.Parse()
+
+	setDefaultServerAddress()
+	setDefaultBaseURL()
 }
 
 func setDefaultServerAddress() {
