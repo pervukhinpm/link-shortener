@@ -13,7 +13,7 @@ import (
 func TestCreateShortenerURL(t *testing.T) {
 	urlService := url.NewMockService()
 	baseURL := NewServerURL("http", "localhost", 8080)
-	h := NewHandler(urlService, baseURL)
+	h := NewHandler(urlService, *baseURL)
 
 	type want struct {
 		contentType string
@@ -100,7 +100,7 @@ func TestCreateShortenerURL(t *testing.T) {
 func TestGetShortenerURL(t *testing.T) {
 	urlService := url.NewMockService()
 	baseURL := NewServerURL("http", "localhost", 8080)
-	h := NewHandler(urlService, baseURL)
+	h := NewHandler(urlService, *baseURL)
 
 	type want struct {
 		statusCode int

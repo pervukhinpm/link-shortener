@@ -24,7 +24,7 @@ func NewURLService(repo repository.Repository) *ShortenerService {
 func (u *ShortenerService) Shorten(original string) (*domain.URL, error) {
 	randomBytes := make([]byte, 6)
 	if _, err := rand.Read(randomBytes); err != nil {
-		panic(err)
+		return nil, err
 	}
 	short := base64.URLEncoding.EncodeToString(randomBytes)
 	short = strings.TrimRight(short, "=")

@@ -11,10 +11,10 @@ import (
 
 type ShortenerHandler struct {
 	urlService url.ShortenerServiceReaderWriter
-	baseURL    *ServerURL
+	baseURL    ServerURL
 }
 
-func NewHandler(urlService url.ShortenerServiceReaderWriter, baseURL *ServerURL) *ShortenerHandler {
+func NewHandler(urlService url.ShortenerServiceReaderWriter, baseURL ServerURL) *ShortenerHandler {
 	return &ShortenerHandler{
 		urlService: urlService,
 		baseURL:    baseURL,

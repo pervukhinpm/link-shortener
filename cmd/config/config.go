@@ -51,14 +51,14 @@ func parseServerURL(rawURL string) *api.ServerURL {
 	hostPortParts := strings.Split(hostPort, ":")
 	host := hostPortParts[0]
 
+	if len(hostPortParts) != 2 {
+		return api.NewServerURL(scheme, host, 8080)
+	}
+
 	var port int
-	if len(hostPortParts) == 2 {
-		var err error
-		port, err = strconv.Atoi(hostPortParts[1])
-		if err != nil {
-			port = 8080
-		}
-	} else {
+	var err error
+	port, err = strconv.Atoi(hostPortParts[1])
+	if err != nil {
 		port = 8080
 	}
 
