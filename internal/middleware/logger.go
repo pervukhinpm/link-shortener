@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"fmt"
 	"go.uber.org/zap"
 	"net/http"
 	"time"
@@ -12,8 +11,7 @@ var Log *zap.SugaredLogger
 func Initialize() {
 	zl, err := zap.NewProduction()
 	if err != nil {
-		err = fmt.Errorf("error initializing logger: %w", err)
-		return
+		panic("failed to initialize zap logger")
 	}
 	Log = zl.Sugar()
 }
