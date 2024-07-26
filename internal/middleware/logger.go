@@ -1,0 +1,59 @@
+package middleware
+
+import (
+	"fmt"
+	"go.uber.org/zap"
+	"net/http"
+	"time"
+)
+
+var Log *zap.SugaredLogger
+
+func Initialize() {
+	zl, err := zap.NewProduction()
+	if err != nil {
+		err = fmt.Errorf("error initializing logger: %w", err)
+		return
+	}
+	Log = zl.Sugar()
+}
+
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	responseStatus int
+	responseSize   int
+}
+
+func (lrw *loggingResponseWriter) Write(data []byte) (int, error) {
+	size, err := lrw.ResponseWriter.Write(data)
+	lrw.responseSize += size
+	return size, err
+}
+
+func (lrw *loggingResponseWriter) WriteHeader(statusCode int) {
+	lrw.ResponseWriter.WriteHeader(statusCode)
+	lrw.responseStatus = statusCode
+}
+
+func RequestLogger(h func(w http.ResponseWriter, r *http.Request)) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		Log.Infow(
+			"request",
+			"uri", r.RequestURI,
+			"method", r.Method,
+		)
+
+		lrw := loggingResponseWriter{ResponseWriter: w}
+
+		start := time.Now()
+		h(&lrw, r)
+		duration := time.Since(start)
+
+		Log.Infow(
+			"response",
+			"size", lrw.responseSize,
+			"status", lrw.responseStatus,
+			"duration", duration,
+		)
+	}
+}
