@@ -152,3 +152,99 @@ func TestGetShortenerURL(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateJsonShortenerURL(t *testing.T) {
+	urlService := url.NewMockService()
+	baseURL := NewServerURL("http", "localhost", 8080)
+	h := NewHandler(urlService, *baseURL)
+
+	type want struct {
+		contentType string
+		statusCode  int
+		response    string
+	}
+	tests := []struct {
+		name        string
+		requestBody string
+		shortURL    string
+		contentType string
+		want        want
+	}{
+		{
+			name:        "valid JSON request",
+			requestBody: `{"url": "https://practicum.yandex.ru/"}`,
+			shortURL:    "shortURL",
+			contentType: "application/json",
+			want: want{
+				contentType: "application/json",
+				statusCode:  http.StatusCreated,
+				response:    `{"result":"http://localhost:8080/shortURL"}`,
+			},
+		},
+		{
+			name:        "invalid content type",
+			requestBody: `{"url": "https://practicum.yandex.ru/"}`,
+			contentType: "text/plain",
+			want: want{
+				contentType: "text/plain; charset=utf-8",
+				statusCode:  http.StatusBadRequest,
+				response:    "Only application/json supported Media Type!\n",
+			},
+		},
+		{
+			name:        "empty URL field",
+			requestBody: `{"url": ""}`,
+			contentType: "application/json",
+			want: want{
+				contentType: "text/plain; charset=utf-8",
+				statusCode:  http.StatusBadRequest,
+				response:    "Empty URL!\n",
+			},
+		},
+		{
+			name:        "invalid JSON format",
+			requestBody: `{"url": "https://practicum.yandex.ru/"`,
+			contentType: "application/json",
+			want: want{
+				contentType: "text/plain; charset=utf-8",
+				statusCode:  http.StatusBadRequest,
+				response:    "unexpected end of JSON input\n",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testURL := &domain.URL{
+				ID:          tt.shortURL,
+				OriginalURL: "https://practicum.yandex.ru/",
+			}
+			if tt.shortURL != "" {
+				urlService.ShortenURL = testURL
+			}
+
+			req, err := http.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader(tt.requestBody))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Content-Type", tt.contentType)
+
+			rr := httptest.NewRecorder()
+			h.CreateJsonShortenerURL(rr, req)
+
+			if status := rr.Code; status != tt.want.statusCode {
+				t.Errorf("handler returned wrong status code: got %v want %v",
+					status, tt.want.statusCode)
+			}
+
+			if contentType := rr.Header().Get("Content-Type"); contentType != tt.want.contentType {
+				t.Errorf("handler returned wrong content type: got %v want %v",
+					contentType, tt.want.contentType)
+			}
+
+			if rr.Body.String() != tt.want.response {
+				t.Errorf("handler returned unexpected body: got %v want %v",
+					rr.Body.String(), tt.want.response)
+			}
+		})
+	}
+}
