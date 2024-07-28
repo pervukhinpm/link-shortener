@@ -153,7 +153,7 @@ func TestGetShortenerURL(t *testing.T) {
 	}
 }
 
-func TestCreateJsonShortenerURL(t *testing.T) {
+func TestCreateJSONShortenerURL(t *testing.T) {
 	urlService := url.NewMockService()
 	baseURL := NewServerURL("http", "localhost", 8080)
 	h := NewHandler(urlService, *baseURL)
@@ -229,7 +229,7 @@ func TestCreateJsonShortenerURL(t *testing.T) {
 			req.Header.Set("Content-Type", tt.contentType)
 
 			rr := httptest.NewRecorder()
-			h.CreateJsonShortenerURL(rr, req)
+			h.CreateJSONShortenerURL(rr, req)
 
 			if status := rr.Code; status != tt.want.statusCode {
 				t.Errorf("handler returned wrong status code: got %v want %v",

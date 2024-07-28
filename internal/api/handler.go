@@ -78,7 +78,7 @@ func (h *ShortenerHandler) GetShortenerURL(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusTemporaryRedirect)
 }
 
-func (h *ShortenerHandler) CreateJsonShortenerURL(w http.ResponseWriter, r *http.Request) {
+func (h *ShortenerHandler) CreateJSONShortenerURL(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST requests are allowed!", http.StatusBadRequest)
 		return
