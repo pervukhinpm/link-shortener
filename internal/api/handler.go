@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/go-chi/chi/v5"
+	"github.com/pervukhinpm/link-shortener.git/internal/model"
 	"github.com/pervukhinpm/link-shortener.git/internal/url"
 	"io"
 	"net/http"
@@ -90,7 +91,7 @@ func (h *ShortenerHandler) CreateJSONShortenerURL(w http.ResponseWriter, r *http
 		return
 	}
 
-	var createShortenerBody CreateShortenerBody
+	var createShortenerBody model.CreateShortenerBody
 	var buf bytes.Buffer
 
 	_, err := buf.ReadFrom(r.Body)
@@ -116,7 +117,7 @@ func (h *ShortenerHandler) CreateJSONShortenerURL(w http.ResponseWriter, r *http
 	}
 
 	result := fmt.Sprintf("%s/%s", h.baseURL.String(), shortURL.ID)
-	response := CreateShortenerResponse{Result: result}
+	response := model.CreateShortenerResponse{Result: result}
 
 	jsonResp, err := json.Marshal(response)
 	if err != nil {
@@ -130,12 +131,4 @@ func (h *ShortenerHandler) CreateJSONShortenerURL(w http.ResponseWriter, r *http
 	if err != nil {
 		return
 	}
-}
-
-type CreateShortenerBody struct {
-	URL string `json:"url"`
-}
-
-type CreateShortenerResponse struct {
-	Result string `json:"result"`
 }
