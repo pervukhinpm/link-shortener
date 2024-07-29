@@ -34,7 +34,7 @@ func (lrw *loggingResponseWriter) WriteHeader(statusCode int) {
 }
 
 func RequestLogger(h http.HandlerFunc) http.HandlerFunc {
-	logFn := func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		Log.Infow(
 			"request",
 			"uri", r.RequestURI,
@@ -54,5 +54,4 @@ func RequestLogger(h http.HandlerFunc) http.HandlerFunc {
 			"duration", duration,
 		)
 	}
-	return logFn
 }
