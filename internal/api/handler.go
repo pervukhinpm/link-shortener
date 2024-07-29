@@ -30,12 +30,6 @@ func (h *ShortenerHandler) CreateShortenerURL(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	contentType := r.Header.Get("Content-Type")
-	if !strings.HasPrefix(contentType, "text/plain") {
-		http.Error(w, "Only text/plain supported Media Type!", http.StatusBadRequest)
-		return
-	}
-
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -69,7 +63,6 @@ func (h *ShortenerHandler) GetShortenerURL(w http.ResponseWriter, r *http.Reques
 	shortID := chi.URLParam(r, "id")
 
 	origURL, err := h.urlService.Find(shortID)
-
 	if err != nil {
 		http.Error(w, "URL not found!", http.StatusBadRequest)
 		return
