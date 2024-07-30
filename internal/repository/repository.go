@@ -83,11 +83,11 @@ type URLFileModel struct {
 	OriginalURL string `json:"original_url"`
 }
 
-func NewURLFileModel(uuid, shortUrl, originalUrl string) *URLFileModel {
+func NewURLFileModel(uuid, shortURL, originalURL string) *URLFileModel {
 	return &URLFileModel{
 		UUID:        uuid,
-		ShortURL:    shortUrl,
-		OriginalURL: originalUrl,
+		ShortURL:    shortURL,
+		OriginalURL: originalURL,
 	}
 }
 
