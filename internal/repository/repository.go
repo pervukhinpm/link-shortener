@@ -47,7 +47,7 @@ func NewFileRepository(fileName string) (*FileRepository, error) {
 	}
 
 	for _, v := range reader.URLFileModels {
-		repository.storage[v.ShortUrl] = v.OriginalUrl
+		repository.storage[v.ShortURL] = v.OriginalURL
 	}
 
 	reader.Close()
@@ -78,16 +78,16 @@ func (r *FileRepository) Get(id string) (*domain.URL, error) {
 }
 
 type URLFileModel struct {
-	Uuid        string `json:"uuid"`
-	ShortUrl    string `json:"short_url"`
-	OriginalUrl string `json:"original_url"`
+	UUID        string `json:"uuid"`
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
 }
 
 func NewURLFileModel(uuid, shortUrl, originalUrl string) *URLFileModel {
 	return &URLFileModel{
-		Uuid:        uuid,
-		ShortUrl:    shortUrl,
-		OriginalUrl: originalUrl,
+		UUID:        uuid,
+		ShortURL:    shortUrl,
+		OriginalURL: originalUrl,
 	}
 }
 
