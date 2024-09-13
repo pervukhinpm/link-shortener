@@ -9,16 +9,19 @@ import (
 )
 
 var ServerConfig struct {
-	ServerAddress api.ServerURL
-	BaseURL       api.ServerURL
+	ServerAddress   api.ServerURL
+	BaseURL         api.ServerURL
+	FileStoragePath string
 }
 
 func ParseFlags() {
 	var flagServerAddress string
 	var flagBaseURL string
+	var flagFileStoragePath string
 
 	flag.StringVar(&flagServerAddress, "a", "localhost:8080", "Host Port")
 	flag.StringVar(&flagBaseURL, "b", "http://localhost:8080/", "Base URL")
+	flag.StringVar(&flagFileStoragePath, "f", "/tmp/url-db.json", "File storage path")
 	flag.Parse()
 
 	if envServerAddressEnv := os.Getenv("SERVER_ADDR"); envServerAddressEnv != "" {
@@ -29,8 +32,13 @@ func ParseFlags() {
 		flagBaseURL = baseURLEnv
 	}
 
+	if fileStoragePathEnv := os.Getenv("FILE_STORAGE_PATH"); fileStoragePathEnv != "" {
+		flagFileStoragePath = fileStoragePathEnv
+	}
+
 	ServerConfig.ServerAddress = *parseServerURL(flagServerAddress)
 	ServerConfig.BaseURL = *parseServerURL(flagBaseURL)
+	ServerConfig.FileStoragePath = flagFileStoragePath
 }
 
 func parseServerURL(rawURL string) *api.ServerURL {
