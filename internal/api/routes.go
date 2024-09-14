@@ -10,5 +10,6 @@ func (h *ShortenerHandler) useRoutes() *chi.Mux {
 	r.Post("/", middleware.RequestLogger(middleware.GzipMiddleware(h.CreateShortenerURL)))
 	r.Get("/{id}", middleware.RequestLogger(h.GetShortenerURL))
 	r.Post("/api/shorten", middleware.RequestLogger(middleware.GzipMiddleware(h.CreateJSONShortenerURL)))
+	r.Get("/ping", middleware.RequestLogger(h.PingDatabase))
 	return r
 }

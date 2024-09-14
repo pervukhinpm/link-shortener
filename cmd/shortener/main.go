@@ -7,6 +7,8 @@ import (
 	"github.com/pervukhinpm/link-shortener.git/internal/repository"
 	"github.com/pervukhinpm/link-shortener.git/internal/url"
 	"log"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func main() {
@@ -19,7 +21,7 @@ func main() {
 	}
 
 	urlService := url.NewURLService(fileRepository)
-	httpHandler := api.NewHandler(urlService, config.ServerConfig.BaseURL)
+	httpHandler := api.NewHandler(urlService, config.ServerConfig.BaseURL, config.ServerConfig.DatabaseDSN)
 	server := api.NewServer(&config.ServerConfig.ServerAddress, httpHandler)
 	log.Fatal(server.Start())
 }

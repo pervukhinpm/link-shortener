@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/go-chi/chi/v5"
 	"github.com/pervukhinpm/link-shortener.git/internal/model"
+	"github.com/pervukhinpm/link-shortener.git/internal/repository"
 	"github.com/pervukhinpm/link-shortener.git/internal/url"
 	"io"
 	"net/http"
@@ -15,12 +16,14 @@ import (
 type ShortenerHandler struct {
 	urlService url.ShortenerServiceReaderWriter
 	baseURL    ServerURL
+	dsn        string
 }
 
-func NewHandler(urlService url.ShortenerServiceReaderWriter, baseURL ServerURL) *ShortenerHandler {
+func NewHandler(urlService url.ShortenerServiceReaderWriter, baseURL ServerURL, dsn string) *ShortenerHandler {
 	return &ShortenerHandler{
 		urlService: urlService,
 		baseURL:    baseURL,
+		dsn:        dsn,
 	}
 }
 
@@ -124,4 +127,17 @@ func (h *ShortenerHandler) CreateJSONShortenerURL(w http.ResponseWriter, r *http
 	if err != nil {
 		return
 	}
+}
+
+func (h *ShortenerHandler) PingDatabase(w http.ResponseWriter, r *http.Request) {
+	if h.dsn == "" {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	err := repository.PingDatabase(h.dsn)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
