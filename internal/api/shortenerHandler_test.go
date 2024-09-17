@@ -172,7 +172,7 @@ func TestCreateJSONShortenerURL(t *testing.T) {
 	}{
 		{
 			name:        "valid JSON request",
-			requestBody: `{"service": "https://practicum.yandex.ru/"}`,
+			requestBody: `{"url": "https://practicum.yandex.ru/"}`,
 			shortURL:    "shortURL",
 			contentType: "application/json",
 			want: want{
@@ -183,7 +183,7 @@ func TestCreateJSONShortenerURL(t *testing.T) {
 		},
 		{
 			name:        "invalid content type",
-			requestBody: `{"service": "https://practicum.yandex.ru/"}`,
+			requestBody: `{"url": "https://practicum.yandex.ru/"}`,
 			contentType: "text/plain",
 			want: want{
 				contentType: "text/plain; charset=utf-8",
@@ -193,7 +193,7 @@ func TestCreateJSONShortenerURL(t *testing.T) {
 		},
 		{
 			name:        "empty URL field",
-			requestBody: `{"service": ""}`,
+			requestBody: `{"url": ""}`,
 			contentType: "application/json",
 			want: want{
 				contentType: "text/plain; charset=utf-8",
@@ -203,7 +203,7 @@ func TestCreateJSONShortenerURL(t *testing.T) {
 		},
 		{
 			name:        "invalid JSON format",
-			requestBody: `{"service": "https://practicum.yandex.ru/"`,
+			requestBody: `{"url": "https://practicum.yandex.ru/"`,
 			contentType: "application/json",
 			want: want{
 				contentType: "text/plain; charset=utf-8",
