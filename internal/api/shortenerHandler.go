@@ -3,12 +3,15 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/go-chi/chi/v5"
 	"github.com/pervukhinpm/link-shortener.git/domain"
+	"github.com/pervukhinpm/link-shortener.git/internal/errs"
 	"github.com/pervukhinpm/link-shortener.git/internal/middleware"
 	"github.com/pervukhinpm/link-shortener.git/internal/model"
 	"github.com/pervukhinpm/link-shortener.git/internal/service"
+	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"strings"
@@ -44,13 +47,23 @@ func (h *ShortenerHandler) CreateShortenerURL(w http.ResponseWriter, r *http.Req
 	}
 
 	shortURL, err := h.urlService.Shorten(string(body), r.Context())
+
 	if err != nil {
+		if existingErr := new(errs.OriginalURLAlreadyExists); errors.As(err, &existingErr) {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusConflict)
+			_, err = fmt.Fprintf(w, "%s/%s", h.baseURL.String(), existingErr.URL.ID)
+			if err != nil {
+				return
+			}
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
+	w.Header().Set("Content-Type", "text/plain")
 	_, err = fmt.Fprintf(w, "%s/%s", h.baseURL.String(), shortURL.ID)
 	if err != nil {
 		return
@@ -106,7 +119,26 @@ func (h *ShortenerHandler) CreateJSONShortenerURL(w http.ResponseWriter, r *http
 	}
 
 	shortURL, err := h.urlService.Shorten(createShortenerBody.URL, r.Context())
+
 	if err != nil {
+		if existingErr := new(errs.OriginalURLAlreadyExists); errors.As(err, &existingErr) {
+			middleware.Log.Info("original url already exists", zap.String("url", existingErr.URL.OriginalURL))
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			result := fmt.Sprintf("%s/%s", h.baseURL.String(), existingErr.URL.ID)
+			response := model.CreateShortenerResponse{Result: result}
+			jsonResp, err := json.Marshal(response)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			_, err = w.Write(jsonResp)
+			if err != nil {
+				return
+			}
+			return
+		}
+		middleware.Log.Error("create shortener failed", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

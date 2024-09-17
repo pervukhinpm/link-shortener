@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/pervukhinpm/link-shortener.git/domain"
+	"github.com/pervukhinpm/link-shortener.git/internal/errs"
 )
 
 type RAMRepository struct {
@@ -15,6 +16,12 @@ func NewRAMRepository() (*RAMRepository, error) {
 }
 
 func (rmr *RAMRepository) Add(url *domain.URL, ctx context.Context) error {
+	for _, existingOriginalURL := range rmr.MapURL {
+		if existingOriginalURL == url.OriginalURL {
+			return errs.NewOriginalURLAlreadyExists(url)
+		}
+	}
+
 	rmr.MapURL[url.ID] = url.OriginalURL
 	return nil
 }

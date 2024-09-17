@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"github.com/pervukhinpm/link-shortener.git/domain"
+	"github.com/pervukhinpm/link-shortener.git/internal/errs"
 	"github.com/pervukhinpm/link-shortener.git/internal/middleware"
 	"go.uber.org/zap"
 )
@@ -35,15 +36,49 @@ func (dr *DatabaseRepository) Add(url *domain.URL, ctx context.Context) error {
 	}
 
 	query := `
-	INSERT INTO urls 
+	INSERT INTO urls
 	VALUES ($1, $2, $3)
-	ON CONFLICT (uuid) DO NOTHING;
+    ON CONFLICT (original_url) DO NOTHING;
 	`
-	_, err = dr.db.ExecContext(ctx, query, uuid, url.ID, url.OriginalURL)
+
+	result, err := dr.db.ExecContext(ctx, query, uuid, url.ID, url.OriginalURL)
+
 	if err != nil {
+		middleware.Log.Error("Error inserting url", zap.Error(err))
 		return err
 	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		middleware.Log.Error("Error getting rows affected", zap.Error(err))
+		return err
+	}
+
+	if rowsAffected == 0 {
+		middleware.Log.Info("URL already exists, fetching existing short URL", zap.String("original_url", url.OriginalURL))
+
+		existingShortURL, err := dr.getShortURLByOriginal(url.OriginalURL, ctx)
+		if err != nil {
+			middleware.Log.Error("Error getting existing short URL", zap.Error(err))
+			return err
+		}
+
+		return errs.NewOriginalURLAlreadyExists(domain.NewURL(existingShortURL, url.OriginalURL))
+	}
+
 	return nil
+}
+
+func (dr *DatabaseRepository) getShortURLByOriginal(originalURL string, ctx context.Context) (string, error) {
+	query := `
+    SELECT short_url FROM urls WHERE original_url = $1;
+    `
+	var shortURL string
+	err := dr.db.QueryRowContext(ctx, query, originalURL).Scan(&shortURL)
+	if err != nil {
+		return "", err
+	}
+	return shortURL, nil
 }
 
 func (dr *DatabaseRepository) Get(id string, ctx context.Context) (*domain.URL, error) {
@@ -51,6 +86,7 @@ func (dr *DatabaseRepository) Get(id string, ctx context.Context) (*domain.URL, 
 	SELECT original_url from urls WHERE short_url = $1;
 	`
 	originalURLRow := dr.db.QueryRowContext(ctx, query, id)
+
 	var originalURL string
 	err := originalURLRow.Scan(&originalURL)
 	if err != nil {
@@ -64,7 +100,7 @@ func (dr *DatabaseRepository) createDB() error {
 	CREATE TABLE IF NOT EXISTS urls (
 		uuid varchar NOT NULL PRIMARY KEY,
 		short_url varchar NOT NULL,
-		original_url varchar NOT NULL
+		original_url varchar NOT NULL UNIQUE
 	);`
 	_, err := dr.db.ExecContext(context.Background(), query)
 	return err

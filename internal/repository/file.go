@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/pervukhinpm/link-shortener.git/domain"
+	"github.com/pervukhinpm/link-shortener.git/internal/errs"
 	"io"
 	"os"
 )
@@ -56,6 +57,10 @@ func NewFileRepository(fileName string) (*FileRepository, error) {
 }
 
 func (r *FileRepository) Add(url *domain.URL, ctx context.Context) error {
+	existingURL, _ := r.Get(url.ID, ctx)
+	if existingURL != nil {
+		return errs.NewOriginalURLAlreadyExists(existingURL)
+	}
 	uuid, err := GenerateUUID()
 	if err != nil {
 		return err
