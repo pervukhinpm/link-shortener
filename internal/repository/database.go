@@ -61,7 +61,7 @@ func (dr *DatabaseRepository) createDB() error {
 	CREATE TABLE IF NOT EXISTS urls (
 		uuid varchar NOT NULL PRIMARY KEY,
 		short_url varchar NOT NULL,
-		original_url varchar NOT NULL,
+		original_url varchar NOT NULL
 	);`
 	_, err := dr.db.ExecContext(context.Background(), query)
 	return err
