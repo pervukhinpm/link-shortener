@@ -14,5 +14,6 @@ func Router(
 	r.Get("/{id}", middleware.RequestLogger(shortenerHandler.GetShortenerURL))
 	r.Post("/api/shorten", middleware.RequestLogger(middleware.GzipMiddleware(shortenerHandler.CreateJSONShortenerURL)))
 	r.Get("/ping", middleware.RequestLogger(databaseHealthHandler.PingDatabase))
+	r.Post("/api/shorten/batch", middleware.RequestLogger(middleware.GzipMiddleware(shortenerHandler.BatchCreateJSONShortenerURL)))
 	return r
 }

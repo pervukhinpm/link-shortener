@@ -27,6 +27,15 @@ func (rmr *RAMRepository) Get(id string, ctx context.Context) (*domain.URL, erro
 	return domain.NewURL(id, longURL), nil
 }
 
+func (rmr *RAMRepository) AddBatch(urls []domain.URL, ctx context.Context) error {
+	for _, url := range urls {
+		if err := rmr.Add(&url, ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (rmr *RAMRepository) Close() error {
 	return nil
 }

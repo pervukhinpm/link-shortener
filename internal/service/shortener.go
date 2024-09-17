@@ -11,6 +11,7 @@ import (
 
 type ShortenerServiceReaderWriter interface {
 	Find(id string, ctx context.Context) (*domain.URL, error)
+	AddBatch(urls []domain.URL, ctx context.Context) error
 	Shorten(original string, ctx context.Context) (*domain.URL, error)
 }
 
@@ -34,6 +35,13 @@ func (u *ShortenerService) Shorten(original string, ctx context.Context) (*domai
 		return nil, err
 	}
 	return url, nil
+}
+
+func (u *ShortenerService) AddBatch(urls []domain.URL, ctx context.Context) error {
+	if err := u.repo.AddBatch(urls, ctx); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (u *ShortenerService) Find(id string, ctx context.Context) (*domain.URL, error) {

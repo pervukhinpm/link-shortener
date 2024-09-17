@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/go-chi/chi/v5"
+	"github.com/pervukhinpm/link-shortener.git/domain"
+	"github.com/pervukhinpm/link-shortener.git/internal/middleware"
 	"github.com/pervukhinpm/link-shortener.git/internal/model"
 	"github.com/pervukhinpm/link-shortener.git/internal/service"
 	"io"
@@ -113,6 +115,70 @@ func (h *ShortenerHandler) CreateJSONShortenerURL(w http.ResponseWriter, r *http
 	response := model.CreateShortenerResponse{Result: result}
 
 	jsonResp, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_, err = w.Write(jsonResp)
+	if err != nil {
+		return
+	}
+}
+
+func (h *ShortenerHandler) BatchCreateJSONShortenerURL(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only POST requests are allowed!", http.StatusBadRequest)
+		return
+	}
+
+	contentType := r.Header.Get("Content-Type")
+	if !strings.HasPrefix(contentType, "application/json") {
+		http.Error(w, "Only application/json supported Media Type!", http.StatusBadRequest)
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Empty Body!", http.StatusBadRequest)
+		return
+	}
+	if len(body) == 0 {
+		http.Error(w, "Empty body!", http.StatusBadRequest)
+		return
+	}
+
+	var batchRequestBody model.BatchRequestBody
+	err = json.Unmarshal(body, &batchRequestBody.BatchList)
+	if err != nil {
+		http.Error(w, "Invalid JSON!", http.StatusBadRequest)
+		return
+	}
+
+	batchRequestCount := len(batchRequestBody.BatchList)
+	urls := make([]domain.URL, batchRequestCount)
+
+	for i, v := range batchRequestBody.BatchList {
+		urls[i] = *domain.NewURL(v.CorrelationID, v.OriginalURL)
+	}
+
+	err = h.urlService.AddBatch(urls, r.Context())
+	if err != nil {
+		middleware.Log.Error("Shortener.BatchCreateJSONShortenerURL: " + err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	respData := make([]model.BatchResponseItem, batchRequestCount)
+	for i, v := range urls {
+		respData[i] = model.BatchResponseItem{
+			CorrelationID: v.ID,
+			ShortURL:      fmt.Sprintf("%s/%s", h.baseURL.String(), v.ID),
+		}
+	}
+	jsonResp, err := json.Marshal(respData)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -69,6 +69,15 @@ func (r *FileRepository) Add(url *domain.URL, ctx context.Context) error {
 	return nil
 }
 
+func (r *FileRepository) AddBatch(urls []domain.URL, ctx context.Context) error {
+	for _, url := range urls {
+		if err := r.Add(&url, ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *FileRepository) Get(id string, ctx context.Context) (*domain.URL, error) {
 	url, exists := r.storage[id]
 	if !exists {

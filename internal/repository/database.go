@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"github.com/pervukhinpm/link-shortener.git/domain"
+	"github.com/pervukhinpm/link-shortener.git/internal/middleware"
+	"go.uber.org/zap"
 )
 
 type DatabaseRepository struct {
@@ -28,6 +30,7 @@ func NewDatabaseRepository(db *sql.DB) (*DatabaseRepository, error) {
 func (dr *DatabaseRepository) Add(url *domain.URL, ctx context.Context) error {
 	uuid, err := GenerateUUID()
 	if err != nil {
+		middleware.Log.Error("Error generating uuid", zap.Error(err))
 		return err
 	}
 
@@ -64,5 +67,36 @@ func (dr *DatabaseRepository) createDB() error {
 		original_url varchar NOT NULL
 	);`
 	_, err := dr.db.ExecContext(context.Background(), query)
+	return err
+}
+
+func (dr *DatabaseRepository) AddBatch(urls []domain.URL, ctx context.Context) error {
+	tx, err := dr.db.Begin()
+	if err != nil {
+		return err
+	}
+	for _, v := range urls {
+		uuid, err := GenerateUUID()
+		if err != nil {
+			middleware.Log.Error("Error generating uuid", zap.Error(err))
+			return err
+		}
+
+		_, err = tx.ExecContext(ctx, "INSERT INTO urls (uuid, short_url, original_url)"+
+			" VALUES ($1, $2, $3) ON CONFLICT (uuid) DO NOTHING", uuid, v.ID, v.OriginalURL)
+		if err != nil {
+			err := tx.Rollback()
+			if err != nil {
+				middleware.Log.Error("rollback transaction", zap.Error(err))
+				return err
+			}
+			return err
+		}
+	}
+	err = tx.Commit()
+	if err != nil {
+		middleware.Log.Error("commit transaction", zap.Error(err))
+		return err
+	}
 	return err
 }
