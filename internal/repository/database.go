@@ -34,7 +34,7 @@ func (dr *DatabaseRepository) Add(url *domain.URL, ctx context.Context) error {
 	query := `
 	INSERT INTO urls 
 	VALUES ($1, $2, $3)
-	ON CONFLICT ON CONSTRAINT uuid DO NOTHING;
+	ON CONFLICT (uuid) DO NOTHING;
 	`
 	_, err = dr.db.ExecContext(ctx, query, uuid, url.ID, url.OriginalURL)
 	if err != nil {
