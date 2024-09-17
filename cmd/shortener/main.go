@@ -17,6 +17,10 @@ func main() {
 	config.ParseFlags()
 
 	database, err := db.NewDB(config.ServerConfig.DatabaseDSN)
+	if err != nil {
+		middleware.Log.Error("Failed to create database: %v", err)
+		return
+	}
 
 	appRepository, err := repository.NewRepository(
 		config.ServerConfig.DatabaseDSN,
@@ -25,13 +29,14 @@ func main() {
 	)
 
 	if err != nil {
-		log.Fatal("Failed to initialize repository", err)
+		middleware.Log.Error("Failed to initialize repository: %v", err)
+		return
 	}
 
 	defer func(appRepository repository.Repository) {
 		err := appRepository.Close()
 		if err != nil {
-			log.Fatal("Failed to close repository", err)
+			middleware.Log.Error("Failed to close repository: %v", err)
 		}
 	}(appRepository)
 
