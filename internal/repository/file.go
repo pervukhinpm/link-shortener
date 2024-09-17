@@ -2,6 +2,7 @@ package repository
 
 import (
 	"bufio"
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,10 @@ type FileRepository struct {
 	storage  map[string]string
 	writer   URLFileWriter
 	reader   URLFileReader
+}
+
+func (r *FileRepository) Close() error {
+	return r.reader.Close()
 }
 
 func NewFileRepository(fileName string) (*FileRepository, error) {
@@ -50,7 +55,7 @@ func NewFileRepository(fileName string) (*FileRepository, error) {
 	return repository, nil
 }
 
-func (r *FileRepository) Add(url *domain.URL) error {
+func (r *FileRepository) Add(url *domain.URL, ctx context.Context) error {
 	uuid, err := GenerateUUID()
 	if err != nil {
 		return err
@@ -64,7 +69,7 @@ func (r *FileRepository) Add(url *domain.URL) error {
 	return nil
 }
 
-func (r *FileRepository) Get(id string) (*domain.URL, error) {
+func (r *FileRepository) Get(id string, ctx context.Context) (*domain.URL, error) {
 	url, exists := r.storage[id]
 	if !exists {
 		return nil, errors.New("URL not found")

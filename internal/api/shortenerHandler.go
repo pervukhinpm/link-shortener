@@ -6,24 +6,21 @@ import (
 	"fmt"
 	"github.com/go-chi/chi/v5"
 	"github.com/pervukhinpm/link-shortener.git/internal/model"
-	"github.com/pervukhinpm/link-shortener.git/internal/repository"
-	"github.com/pervukhinpm/link-shortener.git/internal/url"
+	"github.com/pervukhinpm/link-shortener.git/internal/service"
 	"io"
 	"net/http"
 	"strings"
 )
 
 type ShortenerHandler struct {
-	urlService url.ShortenerServiceReaderWriter
+	urlService service.ShortenerServiceReaderWriter
 	baseURL    ServerURL
-	dsn        string
 }
 
-func NewHandler(urlService url.ShortenerServiceReaderWriter, baseURL ServerURL, dsn string) *ShortenerHandler {
+func NewHandler(urlService service.ShortenerServiceReaderWriter, baseURL ServerURL) *ShortenerHandler {
 	return &ShortenerHandler{
 		urlService: urlService,
 		baseURL:    baseURL,
-		dsn:        dsn,
 	}
 }
 
@@ -44,7 +41,7 @@ func (h *ShortenerHandler) CreateShortenerURL(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	shortURL, err := h.urlService.Shorten(string(body))
+	shortURL, err := h.urlService.Shorten(string(body), r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -65,7 +62,7 @@ func (h *ShortenerHandler) GetShortenerURL(w http.ResponseWriter, r *http.Reques
 	}
 	shortID := chi.URLParam(r, "id")
 
-	origURL, err := h.urlService.Find(shortID)
+	origURL, err := h.urlService.Find(shortID, r.Context())
 	if err != nil {
 		http.Error(w, "URL not found!", http.StatusBadRequest)
 		return
@@ -106,7 +103,7 @@ func (h *ShortenerHandler) CreateJSONShortenerURL(w http.ResponseWriter, r *http
 		return
 	}
 
-	shortURL, err := h.urlService.Shorten(createShortenerBody.URL)
+	shortURL, err := h.urlService.Shorten(createShortenerBody.URL, r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -127,17 +124,4 @@ func (h *ShortenerHandler) CreateJSONShortenerURL(w http.ResponseWriter, r *http
 	if err != nil {
 		return
 	}
-}
-
-func (h *ShortenerHandler) PingDatabase(w http.ResponseWriter, r *http.Request) {
-	if h.dsn == "" {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	err := repository.PingDatabase(h.dsn)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
 }

@@ -2,7 +2,7 @@ package api
 
 import (
 	"github.com/pervukhinpm/link-shortener.git/domain"
-	"github.com/pervukhinpm/link-shortener.git/internal/url"
+	"github.com/pervukhinpm/link-shortener.git/internal/service"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,9 +11,9 @@ import (
 )
 
 func TestCreateShortenerURL(t *testing.T) {
-	urlService := url.NewMockService()
+	urlService := service.NewMockService()
 	baseURL := NewServerURL("http", "localhost", 8080)
-	h := NewHandler(urlService, *baseURL, "")
+	h := NewHandler(urlService, *baseURL)
 
 	type want struct {
 		contentType string
@@ -98,9 +98,9 @@ func TestCreateShortenerURL(t *testing.T) {
 }
 
 func TestGetShortenerURL(t *testing.T) {
-	urlService := url.NewMockService()
+	urlService := service.NewMockService()
 	baseURL := NewServerURL("http", "localhost", 8080)
-	h := NewHandler(urlService, *baseURL, "")
+	h := NewHandler(urlService, *baseURL)
 
 	type want struct {
 		statusCode int
@@ -154,9 +154,9 @@ func TestGetShortenerURL(t *testing.T) {
 }
 
 func TestCreateJSONShortenerURL(t *testing.T) {
-	urlService := url.NewMockService()
+	urlService := service.NewMockService()
 	baseURL := NewServerURL("http", "localhost", 8080)
-	h := NewHandler(urlService, *baseURL, "")
+	h := NewHandler(urlService, *baseURL)
 
 	type want struct {
 		contentType string
@@ -172,7 +172,7 @@ func TestCreateJSONShortenerURL(t *testing.T) {
 	}{
 		{
 			name:        "valid JSON request",
-			requestBody: `{"url": "https://practicum.yandex.ru/"}`,
+			requestBody: `{"service": "https://practicum.yandex.ru/"}`,
 			shortURL:    "shortURL",
 			contentType: "application/json",
 			want: want{
@@ -183,7 +183,7 @@ func TestCreateJSONShortenerURL(t *testing.T) {
 		},
 		{
 			name:        "invalid content type",
-			requestBody: `{"url": "https://practicum.yandex.ru/"}`,
+			requestBody: `{"service": "https://practicum.yandex.ru/"}`,
 			contentType: "text/plain",
 			want: want{
 				contentType: "text/plain; charset=utf-8",
@@ -193,7 +193,7 @@ func TestCreateJSONShortenerURL(t *testing.T) {
 		},
 		{
 			name:        "empty URL field",
-			requestBody: `{"url": ""}`,
+			requestBody: `{"service": ""}`,
 			contentType: "application/json",
 			want: want{
 				contentType: "text/plain; charset=utf-8",
@@ -203,7 +203,7 @@ func TestCreateJSONShortenerURL(t *testing.T) {
 		},
 		{
 			name:        "invalid JSON format",
-			requestBody: `{"url": "https://practicum.yandex.ru/"`,
+			requestBody: `{"service": "https://practicum.yandex.ru/"`,
 			contentType: "application/json",
 			want: want{
 				contentType: "text/plain; charset=utf-8",

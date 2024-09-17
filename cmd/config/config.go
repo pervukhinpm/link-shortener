@@ -23,7 +23,7 @@ func ParseFlags() {
 
 	flag.StringVar(&flagServerAddress, "a", "localhost:8080", "Host Port")
 	flag.StringVar(&flagBaseURL, "b", "http://localhost:8080/", "Base URL")
-	flag.StringVar(&flagFileStoragePath, "f", "/tmp/url-db.json", "File storage path")
+	flag.StringVar(&flagFileStoragePath, "f", "/tmp/service-db.json", "File storage path")
 	flag.StringVar(&flagDatabaseDSN, "d", "", "Database DSN")
 
 	flag.Parse()

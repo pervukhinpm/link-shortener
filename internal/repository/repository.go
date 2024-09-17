@@ -1,10 +1,12 @@
 package repository
 
 import (
+	"context"
 	"github.com/pervukhinpm/link-shortener.git/domain"
 )
 
 type Repository interface {
-	Add(url *domain.URL) error
-	Get(id string) (*domain.URL, error)
+	Add(url *domain.URL, ctx context.Context) error
+	Get(id string, ctx context.Context) (*domain.URL, error)
+	Close() error
 }

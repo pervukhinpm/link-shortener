@@ -1,7 +1,7 @@
 package model
 
 type CreateShortenerBody struct {
-	URL string `json:"url"`
+	URL string `json:"service"`
 }
 
 type CreateShortenerResponse struct {
