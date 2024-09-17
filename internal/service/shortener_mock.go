@@ -27,3 +27,12 @@ func (u *MockShortenerService) Find(id string, ctx context.Context) (*domain.URL
 	}
 	return u.ShortenURL, nil
 }
+
+func (u *MockShortenerService) AddBatch(urls []domain.URL, ctx context.Context) error {
+	for _, url := range urls {
+		if _, err := u.Shorten(url.OriginalURL, ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
