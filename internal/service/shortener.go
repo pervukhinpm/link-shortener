@@ -1,6 +1,7 @@
-package url
+package service
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"github.com/pervukhinpm/link-shortener.git/domain"
@@ -9,8 +10,9 @@ import (
 )
 
 type ShortenerServiceReaderWriter interface {
-	Find(id string) (*domain.URL, error)
-	Shorten(original string) (*domain.URL, error)
+	Find(id string, ctx context.Context) (*domain.URL, error)
+	AddBatch(urls []domain.URL, ctx context.Context) error
+	Shorten(original string, ctx context.Context) (*domain.URL, error)
 }
 
 type ShortenerService struct {
@@ -21,7 +23,7 @@ func NewURLService(repo repository.Repository) *ShortenerService {
 	return &ShortenerService{repo: repo}
 }
 
-func (u *ShortenerService) Shorten(original string) (*domain.URL, error) {
+func (u *ShortenerService) Shorten(original string, ctx context.Context) (*domain.URL, error) {
 	randomBytes := make([]byte, 6)
 	if _, err := rand.Read(randomBytes); err != nil {
 		return nil, err
@@ -29,14 +31,21 @@ func (u *ShortenerService) Shorten(original string) (*domain.URL, error) {
 	short := base64.URLEncoding.EncodeToString(randomBytes)
 	short = strings.TrimRight(short, "=")
 	url := domain.NewURL(short, original)
-	if err := u.repo.Add(url); err != nil {
+	if err := u.repo.Add(url, ctx); err != nil {
 		return nil, err
 	}
 	return url, nil
 }
 
-func (u *ShortenerService) Find(id string) (*domain.URL, error) {
-	url, err := u.repo.Get(id)
+func (u *ShortenerService) AddBatch(urls []domain.URL, ctx context.Context) error {
+	if err := u.repo.AddBatch(urls, ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (u *ShortenerService) Find(id string, ctx context.Context) (*domain.URL, error) {
+	url, err := u.repo.Get(id, ctx)
 	if err != nil {
 		return nil, err
 	}

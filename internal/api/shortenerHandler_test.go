@@ -2,7 +2,7 @@ package api
 
 import (
 	"github.com/pervukhinpm/link-shortener.git/domain"
-	"github.com/pervukhinpm/link-shortener.git/internal/url"
+	"github.com/pervukhinpm/link-shortener.git/internal/service"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +11,7 @@ import (
 )
 
 func TestCreateShortenerURL(t *testing.T) {
-	urlService := url.NewMockService()
+	urlService := service.NewMockService()
 	baseURL := NewServerURL("http", "localhost", 8080)
 	h := NewHandler(urlService, *baseURL)
 
@@ -98,7 +98,7 @@ func TestCreateShortenerURL(t *testing.T) {
 }
 
 func TestGetShortenerURL(t *testing.T) {
-	urlService := url.NewMockService()
+	urlService := service.NewMockService()
 	baseURL := NewServerURL("http", "localhost", 8080)
 	h := NewHandler(urlService, *baseURL)
 
@@ -154,7 +154,7 @@ func TestGetShortenerURL(t *testing.T) {
 }
 
 func TestCreateJSONShortenerURL(t *testing.T) {
-	urlService := url.NewMockService()
+	urlService := service.NewMockService()
 	baseURL := NewServerURL("http", "localhost", 8080)
 	h := NewHandler(urlService, *baseURL)
 

@@ -12,16 +12,20 @@ var ServerConfig struct {
 	ServerAddress   api.ServerURL
 	BaseURL         api.ServerURL
 	FileStoragePath string
+	DatabaseDSN     string
 }
 
 func ParseFlags() {
 	var flagServerAddress string
 	var flagBaseURL string
 	var flagFileStoragePath string
+	var flagDatabaseDSN string
 
 	flag.StringVar(&flagServerAddress, "a", "localhost:8080", "Host Port")
 	flag.StringVar(&flagBaseURL, "b", "http://localhost:8080/", "Base URL")
-	flag.StringVar(&flagFileStoragePath, "f", "/tmp/url-db.json", "File storage path")
+	flag.StringVar(&flagFileStoragePath, "f", "/tmp/service-db.json", "File storage path")
+	flag.StringVar(&flagDatabaseDSN, "d", "", "Database DSN")
+
 	flag.Parse()
 
 	if envServerAddressEnv := os.Getenv("SERVER_ADDR"); envServerAddressEnv != "" {
@@ -36,9 +40,14 @@ func ParseFlags() {
 		flagFileStoragePath = fileStoragePathEnv
 	}
 
+	if databaseDSNEnv := os.Getenv("DATABASE_DSN"); databaseDSNEnv != "" {
+		flagDatabaseDSN = databaseDSNEnv
+	}
+
 	ServerConfig.ServerAddress = *parseServerURL(flagServerAddress)
 	ServerConfig.BaseURL = *parseServerURL(flagBaseURL)
 	ServerConfig.FileStoragePath = flagFileStoragePath
+	ServerConfig.DatabaseDSN = flagDatabaseDSN
 }
 
 func parseServerURL(rawURL string) *api.ServerURL {
