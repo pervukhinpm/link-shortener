@@ -36,3 +36,11 @@ func (u *MockShortenerService) AddBatch(urls []domain.URL, ctx context.Context) 
 	}
 	return nil
 }
+
+func (u *MockShortenerService) GetByUserID(ctx context.Context) (*[]domain.URL, error) {
+	if u.ShortenURL == nil {
+		return nil, errors.New("shorten service not found")
+	}
+	urls := []domain.URL{*u.ShortenURL}
+	return &urls, nil
+}

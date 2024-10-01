@@ -6,6 +6,7 @@ import (
 	"github.com/pervukhinpm/link-shortener.git/domain"
 	"github.com/pervukhinpm/link-shortener.git/internal/errs"
 	"github.com/pervukhinpm/link-shortener.git/internal/middleware"
+	"github.com/pervukhinpm/link-shortener.git/internal/utils"
 	"go.uber.org/zap"
 )
 
@@ -29,7 +30,7 @@ func NewDatabaseRepository(db *sql.DB) (*DatabaseRepository, error) {
 }
 
 func (dr *DatabaseRepository) Add(url *domain.URL, ctx context.Context) error {
-	uuid, err := GenerateUUID()
+	uuid, err := utils.GenerateUUID()
 	if err != nil {
 		middleware.Log.Error("Error generating uuid", zap.Error(err))
 		return err
@@ -37,11 +38,12 @@ func (dr *DatabaseRepository) Add(url *domain.URL, ctx context.Context) error {
 
 	query := `
 	INSERT INTO urls
-	VALUES ($1, $2, $3)
+	VALUES ($1, $2, $3, $4)
     ON CONFLICT (original_url) DO NOTHING;
 	`
 
-	result, err := dr.db.ExecContext(ctx, query, uuid, url.ID, url.OriginalURL)
+	userID := middleware.GetUserID(ctx)
+	result, err := dr.db.ExecContext(ctx, query, uuid, url.ID, url.OriginalURL, userID)
 
 	if err != nil {
 		middleware.Log.Error("Error inserting url", zap.Error(err))
@@ -63,7 +65,7 @@ func (dr *DatabaseRepository) Add(url *domain.URL, ctx context.Context) error {
 			return err
 		}
 
-		return errs.NewOriginalURLAlreadyExists(domain.NewURL(existingShortURL, url.OriginalURL))
+		return errs.NewOriginalURLAlreadyExists(domain.NewURL(existingShortURL, url.OriginalURL, userID))
 	}
 
 	return nil
@@ -92,7 +94,9 @@ func (dr *DatabaseRepository) Get(id string, ctx context.Context) (*domain.URL, 
 	if err != nil {
 		return nil, err
 	}
-	return domain.NewURL(id, originalURL), nil
+
+	userID := middleware.GetUserID(ctx)
+	return domain.NewURL(id, originalURL, userID), nil
 }
 
 func (dr *DatabaseRepository) createDB() error {
@@ -100,7 +104,8 @@ func (dr *DatabaseRepository) createDB() error {
 	CREATE TABLE IF NOT EXISTS urls (
 		uuid varchar NOT NULL PRIMARY KEY,
 		short_url varchar NOT NULL,
-		original_url varchar NOT NULL UNIQUE
+		original_url varchar NOT NULL UNIQUE,
+		user_id varchar NOT NULL
 	);`
 	_, err := dr.db.ExecContext(context.Background(), query)
 	return err
@@ -111,15 +116,18 @@ func (dr *DatabaseRepository) AddBatch(urls []domain.URL, ctx context.Context) e
 	if err != nil {
 		return err
 	}
+
+	userID := middleware.GetUserID(ctx)
+
 	for _, v := range urls {
-		uuid, err := GenerateUUID()
+		uuid, err := utils.GenerateUUID()
 		if err != nil {
 			middleware.Log.Error("Error generating uuid", zap.Error(err))
 			return err
 		}
 
-		_, err = tx.ExecContext(ctx, "INSERT INTO urls (uuid, short_url, original_url)"+
-			" VALUES ($1, $2, $3) ON CONFLICT (uuid) DO NOTHING", uuid, v.ID, v.OriginalURL)
+		_, err = tx.ExecContext(ctx, "INSERT INTO urls (uuid, short_url, original_url, user_id)"+
+			" VALUES ($1, $2, $3, $4) ON CONFLICT (uuid) DO NOTHING", uuid, v.ID, v.OriginalURL, userID)
 		if err != nil {
 			err := tx.Rollback()
 			if err != nil {
@@ -135,4 +143,42 @@ func (dr *DatabaseRepository) AddBatch(urls []domain.URL, ctx context.Context) e
 		return err
 	}
 	return err
+}
+
+func (dr *DatabaseRepository) GetByUserID(ctx context.Context) (*[]domain.URL, error) {
+	userID := middleware.GetUserID(ctx)
+
+	query := `
+    SELECT short_url, original_url FROM urls WHERE user_id = $1;
+    `
+	rows, err := dr.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		middleware.Log.Error("Error querying URLs by user ID", zap.Error(err))
+		return nil, err
+	}
+	defer rows.Close()
+
+	var urls []domain.URL
+
+	for rows.Next() {
+		var shortURL, originalURL string
+		err := rows.Scan(&shortURL, &originalURL)
+		if err != nil {
+			middleware.Log.Error("Error scanning row", zap.Error(err))
+			return nil, err
+		}
+
+		urls = append(urls, domain.URL{
+			ID:          shortURL,
+			OriginalURL: originalURL,
+			UserID:      userID,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		middleware.Log.Error("Error iterating over rows", zap.Error(err))
+		return nil, err
+	}
+
+	return &urls, nil
 }

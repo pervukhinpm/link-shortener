@@ -192,8 +192,10 @@ func (h *ShortenerHandler) BatchCreateJSONShortenerURL(w http.ResponseWriter, r 
 	batchRequestCount := len(batchRequestBody.BatchList)
 	urls := make([]domain.URL, batchRequestCount)
 
+	userID := middleware.GetUserID(r.Context())
+
 	for i, v := range batchRequestBody.BatchList {
-		urls[i] = *domain.NewURL(v.CorrelationID, v.OriginalURL)
+		urls[i] = *domain.NewURL(v.CorrelationID, v.OriginalURL, userID)
 	}
 
 	err = h.urlService.AddBatch(urls, r.Context())
@@ -220,6 +222,43 @@ func (h *ShortenerHandler) BatchCreateJSONShortenerURL(w http.ResponseWriter, r 
 	w.WriteHeader(http.StatusCreated)
 	_, err = w.Write(jsonResp)
 	if err != nil {
+		return
+	}
+}
+
+func (h *ShortenerHandler) getURLsByUser(w http.ResponseWriter, r *http.Request) {
+	_, err := r.Cookie(middleware.CookieName)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	urls, err := h.urlService.GetByUserID(r.Context())
+	if err != nil {
+		middleware.Log.Error("error to get url")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	var shortURLBatch []model.URLByUserBatchResponseItem
+	for _, url := range *urls {
+		shortURLBatch = append(shortURLBatch, model.URLByUserBatchResponseItem{
+			ShortURL:    fmt.Sprintf("%s/%s", h.baseURL.String(), url.ID),
+			OriginalURL: url.OriginalURL,
+		})
+	}
+
+	if len(shortURLBatch) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	err = json.NewEncoder(w).Encode(shortURLBatch)
+	if err != nil {
+		middleware.Log.Error("error to create response", zap.String("err", err.Error()))
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 }

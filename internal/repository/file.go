@@ -3,19 +3,18 @@ package repository
 import (
 	"bufio"
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/pervukhinpm/link-shortener.git/domain"
 	"github.com/pervukhinpm/link-shortener.git/internal/errs"
-	"io"
+	"github.com/pervukhinpm/link-shortener.git/internal/middleware"
+	"github.com/pervukhinpm/link-shortener.git/internal/utils"
 	"os"
 )
 
 type FileRepository struct {
 	fileName string
-	storage  map[string]string
+	storage  map[string]URLFileModel
 	writer   URLFileWriter
 	reader   URLFileReader
 }
@@ -42,13 +41,13 @@ func NewFileRepository(fileName string) (*FileRepository, error) {
 
 	repository := &FileRepository{
 		fileName,
-		make(map[string]string),
+		make(map[string]URLFileModel),
 		*writer,
 		*reader,
 	}
 
 	for _, v := range reader.URLFileModels {
-		repository.storage[v.ShortURL] = v.OriginalURL
+		repository.storage[v.ShortURL] = v
 	}
 
 	reader.Close()
@@ -61,7 +60,7 @@ func (r *FileRepository) Add(url *domain.URL, ctx context.Context) error {
 	if existingURL != nil {
 		return errs.NewOriginalURLAlreadyExists(existingURL)
 	}
-	uuid, err := GenerateUUID()
+	uuid, err := utils.GenerateUUID()
 	if err != nil {
 		return err
 	}
@@ -70,7 +69,7 @@ func (r *FileRepository) Add(url *domain.URL, ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	r.storage[url.ID] = url.OriginalURL
+	r.storage[url.ID] = *urlFileModel
 	return nil
 }
 
@@ -84,15 +83,33 @@ func (r *FileRepository) AddBatch(urls []domain.URL, ctx context.Context) error 
 }
 
 func (r *FileRepository) Get(id string, ctx context.Context) (*domain.URL, error) {
+	userID := middleware.GetUserID(ctx)
 	url, exists := r.storage[id]
 	if !exists {
 		return nil, errors.New("URL not found")
 	}
-	return domain.NewURL(id, url), nil
+	return domain.NewURL(id, url.OriginalURL, userID), nil
+}
+
+func (r *FileRepository) GetByUserID(ctx context.Context) (*[]domain.URL, error) {
+	var urls []domain.URL
+
+	userID := middleware.GetUserID(ctx)
+
+	for _, record := range r.storage {
+		if record.UserID == userID {
+			url := domain.NewURL(record.ShortURL, record.OriginalURL, record.UserID)
+			urls = append(urls, *url)
+		}
+	}
+
+	// Если ничего не найдено, возвращаем пустой список
+	return &urls, nil
 }
 
 type URLFileModel struct {
 	UUID        string `json:"uuid"`
+	UserID      string `json:"user_uuid"`
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
 }
@@ -172,17 +189,4 @@ func (u *URLFileReader) ReadURL() error {
 
 func (u *URLFileReader) Close() error {
 	return u.file.Close()
-}
-
-func GenerateUUID() (string, error) {
-	uuid := make([]byte, 16)
-	_, err := io.ReadFull(rand.Reader, uuid)
-	if err != nil {
-		return "", err
-	}
-
-	uuid[6] = (uuid[6] & 0x0f) | 0x40
-	uuid[8] = (uuid[8] & 0x3f) | 0x80
-
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%12x", uuid[0:4], uuid[4:6], uuid[6:8], uuid[8:10], uuid[10:]), nil
 }
