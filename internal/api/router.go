@@ -10,10 +10,25 @@ func Router(
 	shortenerHandler *ShortenerHandler,
 ) chi.Router {
 	r := chi.NewRouter()
-	r.Post("/", middleware.RequestLogger(middleware.GzipMiddleware(shortenerHandler.CreateShortenerURL)))
-	r.Get("/{id}", middleware.RequestLogger(shortenerHandler.GetShortenerURL))
-	r.Post("/api/shorten", middleware.RequestLogger(middleware.GzipMiddleware(shortenerHandler.CreateJSONShortenerURL)))
-	r.Get("/ping", middleware.RequestLogger(databaseHealthHandler.PingDatabase))
-	r.Post("/api/shorten/batch", middleware.RequestLogger(middleware.GzipMiddleware(shortenerHandler.BatchCreateJSONShortenerURL)))
+
+	r.Use(middleware.Logger)
+	r.Use(middleware.Gzip)
+
+	// Публичные маршруты (без аутентификации)
+	r.Group(func(r chi.Router) {
+		r.Get("/ping", databaseHealthHandler.PingDatabase)
+	})
+
+	// Маршруты, требующие аутентификации
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Auth)
+
+		r.Post("/", shortenerHandler.CreateShortenerURL)
+		r.Get("/{id}", shortenerHandler.GetShortenerURL)
+		r.Post("/api/shorten", shortenerHandler.CreateJSONShortenerURL)
+		r.Post("/api/shorten/batch", shortenerHandler.BatchCreateJSONShortenerURL)
+		r.Get("/api/user/urls", shortenerHandler.getURLsByUser)
+	})
+
 	return r
 }

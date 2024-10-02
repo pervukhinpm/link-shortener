@@ -33,8 +33,8 @@ func (lrw *loggingResponseWriter) WriteHeader(statusCode int) {
 	lrw.responseStatus = statusCode
 }
 
-func RequestLogger(h http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func Logger(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		Log.Infow(
 			"request",
 			"uri", r.RequestURI,
@@ -44,7 +44,7 @@ func RequestLogger(h http.HandlerFunc) http.HandlerFunc {
 		lrw := loggingResponseWriter{ResponseWriter: w}
 
 		start := time.Now()
-		h(&lrw, r)
+		h.ServeHTTP(&lrw, r) // Вызов метода ServeHTTP для хендлера
 		duration := time.Since(start)
 
 		Log.Infow(
@@ -53,5 +53,5 @@ func RequestLogger(h http.HandlerFunc) http.HandlerFunc {
 			"status", lrw.responseStatus,
 			"duration", duration,
 		)
-	}
+	})
 }
