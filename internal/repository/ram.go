@@ -30,10 +30,11 @@ func (rmr *RAMRepository) Add(url *domain.URL, ctx context.Context) error {
 func (rmr *RAMRepository) Get(id string, ctx context.Context) (*domain.URL, error) {
 	longURL := rmr.MapURL[id].OriginalURL
 	userID := middleware.GetUserID(ctx)
+	isDeleted := rmr.MapURL[id].IsDeleted
 	if longURL == "" {
 		return nil, errors.New("url not found")
 	}
-	url := domain.NewURL(id, longURL, userID)
+	url := domain.NewURL(id, longURL, userID, isDeleted)
 	return url, nil
 }
 
@@ -71,4 +72,29 @@ func (rmr *RAMRepository) GetByUserID(ctx context.Context) (*[]domain.URL, error
 
 	// Возвращаем список URL
 	return &urls, nil
+}
+
+func (rmr *RAMRepository) GetFlagByShortURL(ctx context.Context, shortenedURL string) (bool, error) {
+	urlData, exists := rmr.MapURL[shortenedURL]
+	if !exists {
+		return false, errs.ErrURLNotFound
+	}
+
+	// Возвращаем флаг is_deleted
+	return urlData.IsDeleted, nil
+}
+
+func (rmr *RAMRepository) DeleteURLBatch(ctx context.Context, urls []UserShortURL) error {
+	for _, url := range urls {
+		urlData, exists := rmr.MapURL[url.ShortURL]
+		if !exists {
+			continue
+		}
+		if urlData.UserID == url.UserID {
+			urlData.IsDeleted = true
+			rmr.MapURL[url.ShortURL] = urlData
+		}
+	}
+
+	return nil
 }

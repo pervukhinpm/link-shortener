@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/pervukhinpm/link-shortener.git/domain"
+	"github.com/pervukhinpm/link-shortener.git/internal/model"
 )
 
 type MockShortenerService struct {
@@ -43,4 +44,11 @@ func (u *MockShortenerService) GetByUserID(ctx context.Context) (*[]domain.URL, 
 	}
 	urls := []domain.URL{*u.ShortenURL}
 	return &urls, nil
+}
+func (u *MockShortenerService) GetFlagByShortURL(ctx context.Context, shortURL string) (bool, error) {
+	return false, nil
+}
+
+func (u *MockShortenerService) DeleteURLBatch(ctx context.Context, deleteBatch model.DeleteBatch) {
+
 }

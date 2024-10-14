@@ -77,6 +77,16 @@ func (h *ShortenerHandler) GetShortenerURL(w http.ResponseWriter, r *http.Reques
 	}
 	shortID := chi.URLParam(r, "id")
 
+	deleted, err := h.urlService.GetFlagByShortURL(r.Context(), shortID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if deleted {
+		w.WriteHeader(http.StatusGone)
+		return
+	}
+
 	origURL, err := h.urlService.Find(shortID, r.Context())
 	if err != nil {
 		http.Error(w, "URL not found!", http.StatusBadRequest)
@@ -195,7 +205,7 @@ func (h *ShortenerHandler) BatchCreateJSONShortenerURL(w http.ResponseWriter, r 
 	userID := middleware.GetUserID(r.Context())
 
 	for i, v := range batchRequestBody.BatchList {
-		urls[i] = *domain.NewURL(v.CorrelationID, v.OriginalURL, userID)
+		urls[i] = *domain.NewURL(v.CorrelationID, v.OriginalURL, userID, false)
 	}
 
 	err = h.urlService.AddBatch(urls, r.Context())
@@ -261,4 +271,34 @@ func (h *ShortenerHandler) getURLsByUser(w http.ResponseWriter, r *http.Request)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+}
+
+func (h *ShortenerHandler) DeleteURLBatchByUser(w http.ResponseWriter, r *http.Request) {
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "application/json" {
+		http.Error(w, "Invalid Content-Type", http.StatusBadRequest)
+		return
+	}
+
+	userID := middleware.GetUserID(r.Context())
+
+	var deleteBatch model.DeleteBatch
+
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	err = json.Unmarshal(bodyBytes, &deleteBatch.ShortenedURL)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	deleteBatch.UserID = userID
+
+	go h.urlService.DeleteURLBatch(r.Context(), deleteBatch)
+
+	w.WriteHeader(http.StatusAccepted)
 }

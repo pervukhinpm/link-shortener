@@ -28,6 +28,7 @@ func Router(
 		r.Post("/api/shorten", shortenerHandler.CreateJSONShortenerURL)
 		r.Post("/api/shorten/batch", shortenerHandler.BatchCreateJSONShortenerURL)
 		r.Get("/api/user/urls", shortenerHandler.getURLsByUser)
+		r.Delete("/api/user/urls", shortenerHandler.DeleteURLBatchByUser)
 	})
 
 	return r

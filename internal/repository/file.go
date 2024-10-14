@@ -64,7 +64,7 @@ func (r *FileRepository) Add(url *domain.URL, ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	urlFileModel := NewURLFileModel(uuid, url.ID, url.OriginalURL)
+	urlFileModel := NewURLFileModel(uuid, url.ID, url.OriginalURL, false)
 	err = r.writer.WriteURL(urlFileModel)
 	if err != nil {
 		return err
@@ -88,7 +88,7 @@ func (r *FileRepository) Get(id string, ctx context.Context) (*domain.URL, error
 	if !exists {
 		return nil, errors.New("URL not found")
 	}
-	return domain.NewURL(id, url.OriginalURL, userID), nil
+	return domain.NewURL(id, url.OriginalURL, userID, url.IsDeleted), nil
 }
 
 func (r *FileRepository) GetByUserID(ctx context.Context) (*[]domain.URL, error) {
@@ -98,7 +98,7 @@ func (r *FileRepository) GetByUserID(ctx context.Context) (*[]domain.URL, error)
 
 	for _, record := range r.storage {
 		if record.UserID == userID {
-			url := domain.NewURL(record.ShortURL, record.OriginalURL, record.UserID)
+			url := domain.NewURL(record.ShortURL, record.OriginalURL, record.UserID, record.IsDeleted)
 			urls = append(urls, *url)
 		}
 	}
@@ -107,18 +107,55 @@ func (r *FileRepository) GetByUserID(ctx context.Context) (*[]domain.URL, error)
 	return &urls, nil
 }
 
+func (r *FileRepository) DeleteURLBatch(ctx context.Context, urls []UserShortURL) error {
+	userID := middleware.GetUserID(ctx)
+
+	for _, url := range urls {
+		storedURL, exists := r.storage[url.ShortURL]
+		if exists && storedURL.UserID == userID {
+			storedURL.IsDeleted = true
+			r.storage[url.ShortURL] = storedURL
+		}
+	}
+
+	return r.rewriteFile()
+}
+
+func (r *FileRepository) GetFlagByShortURL(_ context.Context, shortenedURL string) (bool, error) {
+	return r.storage[shortenedURL].IsDeleted, nil
+}
+
+func (r *FileRepository) rewriteFile() error {
+	fileWriter, err := NewURLFileWriter(r.fileName)
+	if err != nil {
+		return err
+	}
+	defer fileWriter.file.Close()
+
+	for _, urlModel := range r.storage {
+		err := fileWriter.WriteURL(&urlModel)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 type URLFileModel struct {
 	UUID        string `json:"uuid"`
 	UserID      string `json:"user_uuid"`
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
+	IsDeleted   bool   `json:"is_deleted"`
 }
 
-func NewURLFileModel(uuid, shortURL, originalURL string) *URLFileModel {
+func NewURLFileModel(uuid, shortURL, originalURL string, isDeleted bool) *URLFileModel {
 	return &URLFileModel{
 		UUID:        uuid,
 		ShortURL:    shortURL,
 		OriginalURL: originalURL,
+		IsDeleted:   isDeleted,
 	}
 }
 

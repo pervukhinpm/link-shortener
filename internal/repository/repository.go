@@ -10,5 +10,7 @@ type Repository interface {
 	AddBatch(urls []domain.URL, ctx context.Context) error
 	Get(id string, ctx context.Context) (*domain.URL, error)
 	GetByUserID(ctx context.Context) (*[]domain.URL, error)
+	GetFlagByShortURL(ctx context.Context, shortenedURL string) (bool, error)
+	DeleteURLBatch(ctx context.Context, urls []UserShortURL) error
 	Close() error
 }

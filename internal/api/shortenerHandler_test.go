@@ -60,7 +60,7 @@ func TestCreateShortenerURL(t *testing.T) {
 
 			req.Header.Set("Content-Type", tt.contentType)
 
-			urlService.ShortenURL = domain.NewURL(tt.urlServiceShortID, tt.want.bodyURL, "")
+			urlService.ShortenURL = domain.NewURL(tt.urlServiceShortID, tt.want.bodyURL, "", false)
 
 			buf, err := io.ReadAll(req.Body)
 			if err != nil {
