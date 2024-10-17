@@ -10,6 +10,7 @@ import (
 	"github.com/pervukhinpm/link-shortener.git/internal/repository"
 	"strings"
 	"sync"
+	"time"
 )
 
 type ShortenerServiceReaderWriter interface {
@@ -68,11 +69,17 @@ func (u *ShortenerService) GetByUserID(ctx context.Context) (*[]domain.URL, erro
 }
 
 func (u *ShortenerService) GetFlagByShortURL(ctx context.Context, shortURL string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	isDeleted, err := u.repo.GetFlagByShortURL(ctx, shortURL)
 	return isDeleted, err
 }
 
 func (u *ShortenerService) DeleteURLBatch(ctx context.Context, deleteBatch model.DeleteBatch) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	doneCh := make(chan struct{})
 	defer close(doneCh)
 

@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pervukhinpm/link-shortener.git/domain"
 	"github.com/pervukhinpm/link-shortener.git/internal/errs"
 	"github.com/pervukhinpm/link-shortener.git/internal/middleware"
@@ -13,14 +15,15 @@ import (
 )
 
 type DatabaseRepository struct {
-	db *sql.DB
+	db *pgxpool.Pool
 }
 
 func (dr *DatabaseRepository) Close() error {
-	return dr.db.Close()
+	dr.db.Close()
+	return nil
 }
 
-func NewDatabaseRepository(db *sql.DB) (*DatabaseRepository, error) {
+func NewDatabaseRepository(db *pgxpool.Pool) (*DatabaseRepository, error) {
 	dbRepository := DatabaseRepository{
 		db: db,
 	}
@@ -45,18 +48,14 @@ func (dr *DatabaseRepository) Add(url *domain.URL, ctx context.Context) error {
 	`
 
 	userID := middleware.GetUserID(ctx)
-	result, err := dr.db.ExecContext(ctx, query, uuid, url.ID, url.OriginalURL, userID, url.IsDeleted)
+	result, err := dr.db.Exec(ctx, query, uuid, url.ID, url.OriginalURL, userID, url.IsDeleted)
 
 	if err != nil {
 		middleware.Log.Error("Error inserting url", zap.Error(err))
 		return err
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		middleware.Log.Error("Error getting rows affected", zap.Error(err))
-		return err
-	}
+	rowsAffected := result.RowsAffected()
 
 	if rowsAffected == 0 {
 		middleware.Log.Info("URL already exists, fetching existing short URL", zap.String("original_url", url.OriginalURL))
@@ -78,7 +77,7 @@ func (dr *DatabaseRepository) getShortURLByOriginal(originalURL string, ctx cont
     SELECT short_url FROM urls WHERE original_url = $1;
     `
 	var shortURL string
-	err := dr.db.QueryRowContext(ctx, query, originalURL).Scan(&shortURL)
+	err := dr.db.QueryRow(ctx, query, originalURL).Scan(&shortURL)
 	if err != nil {
 		return "", err
 	}
@@ -89,7 +88,7 @@ func (dr *DatabaseRepository) Get(id string, ctx context.Context) (*domain.URL, 
 	query := `
 	SELECT original_url from urls WHERE short_url = $1;
 	`
-	originalURLRow := dr.db.QueryRowContext(ctx, query, id)
+	originalURLRow := dr.db.QueryRow(ctx, query, id)
 
 	var originalURL string
 	err := originalURLRow.Scan(&originalURL)
@@ -110,17 +109,23 @@ func (dr *DatabaseRepository) createDB() error {
 		user_id varchar NOT NULL,
 		is_deleted BOOLEAN NOT NULL DEFAULT FALSE
 	);`
-	_, err := dr.db.ExecContext(context.Background(), query)
+	_, err := dr.db.Exec(context.Background(), query)
 	return err
 }
 
 func (dr *DatabaseRepository) AddBatch(urls []domain.URL, ctx context.Context) error {
-	tx, err := dr.db.Begin()
+	tx, err := dr.db.Begin(ctx)
 	if err != nil {
 		return err
 	}
 
 	userID := middleware.GetUserID(ctx)
+
+	defer tx.Rollback(ctx)
+
+	batch := &pgx.Batch{}
+	query := "INSERT INTO urls (uuid, short_url, original_url, user_id, is_deleted)" +
+		" VALUES ($1, $2, $3, $4, $5) ON CONFLICT (uuid) DO NOTHING"
 
 	for _, v := range urls {
 		uuid, err := utils.GenerateUUID()
@@ -128,24 +133,10 @@ func (dr *DatabaseRepository) AddBatch(urls []domain.URL, ctx context.Context) e
 			middleware.Log.Error("Error generating uuid", zap.Error(err))
 			return err
 		}
-
-		_, err = tx.ExecContext(ctx, "INSERT INTO urls (uuid, short_url, original_url, user_id, is_deleted)"+
-			" VALUES ($1, $2, $3, $4, $5) ON CONFLICT (uuid) DO NOTHING", uuid, v.ID, v.OriginalURL, userID, v.IsDeleted)
-		if err != nil {
-			err := tx.Rollback()
-			if err != nil {
-				middleware.Log.Error("rollback transaction", zap.Error(err))
-				return err
-			}
-			return err
-		}
+		batch.Queue(query, uuid, v.ID, v.OriginalURL, userID, v.IsDeleted)
 	}
-	err = tx.Commit()
-	if err != nil {
-		middleware.Log.Error("commit transaction", zap.Error(err))
-		return err
-	}
-	return err
+	dr.db.SendBatch(ctx, batch)
+	return tx.Commit(ctx)
 }
 
 func (dr *DatabaseRepository) GetByUserID(ctx context.Context) (*[]domain.URL, error) {
@@ -154,7 +145,7 @@ func (dr *DatabaseRepository) GetByUserID(ctx context.Context) (*[]domain.URL, e
 	query := `
     SELECT short_url, original_url, is_deleted FROM urls WHERE user_id = $1;
     `
-	rows, err := dr.db.QueryContext(ctx, query, userID)
+	rows, err := dr.db.Query(ctx, query, userID)
 	if err != nil {
 		middleware.Log.Error("Error querying URLs by user ID", zap.Error(err))
 		return nil, err
@@ -192,11 +183,11 @@ func (dr *DatabaseRepository) GetFlagByShortURL(ctx context.Context, shortenedUR
 	query := `
         SELECT is_deleted
         FROM urls
-        WHERE short_url = $1
+        WHERE short_url = $1;
     `
 
 	var isDeleted bool
-	err := dr.db.QueryRowContext(ctx, query, shortenedURL).Scan(&isDeleted)
+	err := dr.db.QueryRow(ctx, query, shortenedURL).Scan(&isDeleted)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, errs.ErrURLNotFound
@@ -209,29 +200,23 @@ func (dr *DatabaseRepository) GetFlagByShortURL(ctx context.Context, shortenedUR
 }
 
 func (dr *DatabaseRepository) DeleteURLBatch(ctx context.Context, urls []UserShortURL) error {
-	if len(urls) == 0 {
-		return nil
+	query := `UPDATE urls SET is_deleted = $1 WHERE user_id = $2 AND short_url = $3;`
+	batch := &pgx.Batch{}
+	for _, v := range urls {
+		batch.Queue(query, true, v.UserID, v.ShortURL)
 	}
 
-	// Создаём динамический запрос для каждого URL
-	query := `
-        UPDATE urls 
-        SET is_deleted = TRUE 
-        WHERE short_url IN (`
+	br := dr.db.SendBatch(ctx, batch)
+	defer br.Close()
 
-	args := make([]interface{}, len(urls)+1)
-	for i, url := range urls {
-		query += fmt.Sprintf("$%d,", i+1)
-		args[i] = url.ShortURL
+	for _, v := range urls {
+		_, err := br.Exec()
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) {
+				middleware.Log.Error("Error deleting short URL %v, %v\n", v.ShortURL, zap.Error(err))
+			}
+		}
 	}
-	query = query[:len(query)-1]
-	query += ") AND user_id = $" + fmt.Sprintf("%d", len(urls)+1)
-	args[len(urls)] = urls[0].UserID
-
-	_, err := dr.db.ExecContext(ctx, query, args...)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return br.Close()
 }

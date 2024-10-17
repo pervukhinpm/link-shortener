@@ -8,8 +8,6 @@ import (
 	"github.com/pervukhinpm/link-shortener.git/internal/repository"
 	"github.com/pervukhinpm/link-shortener.git/internal/service"
 	"log"
-
-	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func main() {
