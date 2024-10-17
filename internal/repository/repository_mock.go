@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"github.com/pervukhinpm/link-shortener.git/domain"
 )
@@ -26,4 +27,12 @@ func (m *MockRepository) Get(id string) (*domain.URL, error) {
 		return nil, fmt.Errorf("URL not found")
 	}
 	return url, nil
+}
+
+func (m *MockRepository) GetFlagByShortURL(ctx context.Context, shortenedURL string) (bool, error) {
+	return false, nil
+}
+
+func (m *MockRepository) DeleteURLBatch(ctx context.Context, urls []UserShortURL) error {
+	return nil
 }

@@ -14,5 +14,5 @@ func NewOriginalURLAlreadyExists(url *domain.URL) *OriginalURLAlreadyExists {
 }
 
 func (e *OriginalURLAlreadyExists) Error() string {
-	return fmt.Sprintf("original URL already exists: %s", e.URL)
+	return fmt.Sprintf("original URL already exists: %s", e.URL.OriginalURL)
 }

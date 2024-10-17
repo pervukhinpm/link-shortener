@@ -1,11 +1,13 @@
 package repository
 
-import "database/sql"
+import (
+	"github.com/jackc/pgx/v5/pgxpool"
+)
 
 func NewRepository(
 	dsn string,
 	fileStoragePath string,
-	db *sql.DB,
+	db *pgxpool.Pool,
 ) (Repository, error) {
 	// Если есть DSN и подключение к БД, создаем DatabaseRepository
 	if dsn != "" && db != nil {
