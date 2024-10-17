@@ -69,15 +69,15 @@ func (u *ShortenerService) GetByUserID(ctx context.Context) (*[]domain.URL, erro
 }
 
 func (u *ShortenerService) GetFlagByShortURL(ctx context.Context, shortURL string) (bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	isDeleted, err := u.repo.GetFlagByShortURL(ctx, shortURL)
+	isDeleted, err := u.repo.GetFlagByShortURL(ctxWithTimeout, shortURL)
 	return isDeleted, err
 }
 
 func (u *ShortenerService) DeleteURLBatch(ctx context.Context, deleteBatch model.DeleteBatch) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	doneCh := make(chan struct{})
@@ -92,7 +92,7 @@ func (u *ShortenerService) DeleteURLBatch(ctx context.Context, deleteBatch model
 		formedToDelete = append(formedToDelete, form)
 	}
 
-	err := u.repo.DeleteURLBatch(ctx, formedToDelete)
+	err := u.repo.DeleteURLBatch(ctxWithTimeout, formedToDelete)
 	if err != nil {
 		return
 	}
