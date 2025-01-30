@@ -2,17 +2,17 @@ package service
 
 import (
 	"context"
-	"database/sql"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type PingService struct {
-	db *sql.DB
+	db *pgxpool.Pool
 }
 
-func NewPingService(db *sql.DB) *PingService {
+func NewPingService(db *pgxpool.Pool) *PingService {
 	return &PingService{db: db}
 }
 
 func (p *PingService) PingDB(ctx context.Context) error {
-	return p.db.PingContext(ctx)
+	return p.db.Ping(ctx)
 }
