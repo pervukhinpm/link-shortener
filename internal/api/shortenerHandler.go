@@ -244,6 +244,11 @@ func (h *ShortenerHandler) getURLsByUser(w http.ResponseWriter, r *http.Request)
 	}
 
 	urls, err := h.urlService.GetByUserID(r.Context())
+	if errors.Is(err, errs.ErrURLNotFound) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	if err != nil {
 		middleware.Log.Error("error to get url")
 		w.WriteHeader(http.StatusInternalServerError)

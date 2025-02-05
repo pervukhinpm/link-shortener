@@ -171,6 +171,10 @@ func (dr *DatabaseRepository) GetByUserID(ctx context.Context) (*[]domain.URL, e
 		})
 	}
 
+	if len(urls) == 0 {
+		return nil, errs.ErrURLNotFound
+	}
+
 	if err := rows.Err(); err != nil {
 		middleware.Log.Error("Error iterating over rows", zap.Error(err))
 		return nil, err
