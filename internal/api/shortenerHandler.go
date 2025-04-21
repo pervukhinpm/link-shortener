@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/pervukhinpm/link-shortener.git/domain"
 	"github.com/pervukhinpm/link-shortener.git/internal/errs"
@@ -12,9 +16,6 @@ import (
 	"github.com/pervukhinpm/link-shortener.git/internal/model"
 	"github.com/pervukhinpm/link-shortener.git/internal/service"
 	"go.uber.org/zap"
-	"io"
-	"net/http"
-	"strings"
 )
 
 type ShortenerHandler struct {
@@ -237,29 +238,24 @@ func (h *ShortenerHandler) BatchCreateJSONShortenerURL(w http.ResponseWriter, r 
 }
 
 func (h *ShortenerHandler) getURLsByUser(w http.ResponseWriter, r *http.Request) {
-	_, err := r.Cookie(middleware.CookieName)
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-
 	urls, err := h.urlService.GetByUserID(r.Context())
 	if err != nil {
 		middleware.Log.Error("error to get url")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	if urls == nil || len(*urls) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	var shortURLBatch []model.URLByUserBatchResponseItem
 	for _, url := range *urls {
 		shortURLBatch = append(shortURLBatch, model.URLByUserBatchResponseItem{
 			ShortURL:    fmt.Sprintf("%s/%s", h.baseURL.String(), url.ID),
 			OriginalURL: url.OriginalURL,
 		})
-	}
-
-	if len(shortURLBatch) == 0 {
-		w.WriteHeader(http.StatusNoContent)
-		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")

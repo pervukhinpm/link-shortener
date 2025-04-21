@@ -10,6 +10,8 @@ import (
 	"log"
 )
 
+import _ "net/http/pprof"
+
 func main() {
 	middleware.Initialize()
 	config.ParseFlags()

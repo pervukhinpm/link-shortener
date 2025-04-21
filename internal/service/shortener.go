@@ -4,13 +4,14 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/pervukhinpm/link-shortener.git/domain"
 	"github.com/pervukhinpm/link-shortener.git/internal/middleware"
 	"github.com/pervukhinpm/link-shortener.git/internal/model"
 	"github.com/pervukhinpm/link-shortener.git/internal/repository"
-	"strings"
-	"sync"
-	"time"
 )
 
 type ShortenerServiceReaderWriter interface {
@@ -46,10 +47,7 @@ func (u *ShortenerService) Shorten(original string, ctx context.Context) (*domai
 }
 
 func (u *ShortenerService) AddBatch(urls []domain.URL, ctx context.Context) error {
-	if err := u.repo.AddBatch(urls, ctx); err != nil {
-		return err
-	}
-	return nil
+	return u.repo.AddBatch(urls, ctx)
 }
 
 func (u *ShortenerService) Find(id string, ctx context.Context) (*domain.URL, error) {
@@ -80,20 +78,36 @@ func (u *ShortenerService) DeleteURLBatch(ctx context.Context, deleteBatch model
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	doneCh := make(chan struct{})
-	defer close(doneCh)
+	formedToDelete := make([]repository.UserShortURL, 0, len(deleteBatch.ShortenedURL))
 
-	inputCh := generator(doneCh, deleteBatch)
-	channels := fanOut(doneCh, inputCh)
-	formResultCh := fanIn(doneCh, channels...)
+	const batchSize = 1000
+	for i := 0; i < len(deleteBatch.ShortenedURL); i += batchSize {
+		end := i + batchSize
+		if end > len(deleteBatch.ShortenedURL) {
+			end = len(deleteBatch.ShortenedURL)
+		}
 
-	var formedToDelete []repository.UserShortURL
-	for form := range formResultCh {
-		formedToDelete = append(formedToDelete, form)
+		batch := deleteBatch.ShortenedURL[i:end]
+		batchFormed := make([]repository.UserShortURL, len(batch))
+
+		var wg sync.WaitGroup
+		wg.Add(len(batch))
+
+		for j := range batch {
+			go func(j int) {
+				defer wg.Done()
+				batchFormed[j] = repository.UserShortURL{
+					UserID:   deleteBatch.UserID,
+					ShortURL: batch[j],
+				}
+			}(j)
+		}
+
+		wg.Wait()
+		formedToDelete = append(formedToDelete, batchFormed...)
 	}
 
-	err := u.repo.DeleteURLBatch(ctxWithTimeout, formedToDelete)
-	if err != nil {
+	if err := u.repo.DeleteURLBatch(ctxWithTimeout, formedToDelete); err != nil {
 		return
 	}
 }

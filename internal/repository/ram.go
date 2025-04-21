@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+
 	"github.com/pervukhinpm/link-shortener.git/domain"
 	"github.com/pervukhinpm/link-shortener.git/internal/errs"
 	"github.com/pervukhinpm/link-shortener.git/internal/middleware"
@@ -65,12 +66,7 @@ func (rmr *RAMRepository) GetByUserID(ctx context.Context) (*[]domain.URL, error
 		}
 	}
 
-	// Если не найдено ни одной записи
-	if len(urls) == 0 {
-		return nil, errors.New("no urls found for this user")
-	}
-
-	// Возвращаем список URL
+	// Возвращаем список URL (может быть пустым)
 	return &urls, nil
 }
 

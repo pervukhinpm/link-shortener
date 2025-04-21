@@ -7,6 +7,11 @@ type URL struct {
 	IsDeleted   bool
 }
 
-func NewURL(id, originalURL string, userID string, IsDeleted bool) *URL {
-	return &URL{id, originalURL, userID, IsDeleted}
+func NewURL(id, originalURL string, userID string, isDeleted bool) *URL {
+	return &URL{
+		ID:          id,
+		OriginalURL: originalURL,
+		UserID:      userID,
+		IsDeleted:   isDeleted,
+	}
 }
