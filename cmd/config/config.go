@@ -2,12 +2,15 @@ package config
 
 import (
 	"flag"
-	"github.com/pervukhinpm/link-shortener.git/internal/api"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/pervukhinpm/link-shortener.git/internal/api"
 )
 
+// ServerConfig содержит конфигурацию сервера.
+// Включает адрес сервера, базовый URL, путь к файловому хранилищу и DSN базы данных.
 var ServerConfig struct {
 	ServerAddress   api.ServerURL
 	BaseURL         api.ServerURL
@@ -15,6 +18,8 @@ var ServerConfig struct {
 	DatabaseDSN     string
 }
 
+// ParseFlags парсит флаги командной строки и переменные окружения.
+// Устанавливает значения в ServerConfig.
 func ParseFlags() {
 	var flagServerAddress string
 	var flagBaseURL string
@@ -50,6 +55,8 @@ func ParseFlags() {
 	ServerConfig.DatabaseDSN = flagDatabaseDSN
 }
 
+// parseServerURL парсит строку URL в структуру ServerURL.
+// Поддерживает схемы http и https.
 func parseServerURL(rawURL string) *api.ServerURL {
 	scheme := ""
 	if strings.HasPrefix(rawURL, "http://") {

@@ -1,3 +1,8 @@
+// Package repository предоставляет реализацию интерфейса Repository для работы с базой данных.
+// Включает в себя:
+//   - Работу с PostgreSQL
+//   - Управление соединениями
+//   - Операции с URL
 package repository
 
 import (
@@ -8,17 +13,24 @@ import (
 	"github.com/pervukhinpm/link-shortener.git/domain"
 )
 
+// MockRepository представляет мок-реализацию интерфейса Repository.
+// Используется для тестирования без реальной базы данных.
 type MockRepository struct {
+	// Urls - хранилище URL в памяти
 	Urls map[string]*domain.URL
 	mu   sync.RWMutex
 }
 
+// NewMockRepository создает новый экземпляр MockRepository.
+// Инициализирует хранилище URL в памяти.
 func NewMockRepository() *MockRepository {
 	return &MockRepository{
 		Urls: make(map[string]*domain.URL),
 	}
 }
 
+// Add добавляет новый URL в хранилище.
+// Генерирует UUID для записи и проверяет уникальность оригинального URL.
 func (m *MockRepository) Add(url *domain.URL, ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -26,6 +38,8 @@ func (m *MockRepository) Add(url *domain.URL, ctx context.Context) error {
 	return nil
 }
 
+// Get возвращает URL по его короткому идентификатору.
+// Если URL не найден, возвращает ошибку.
 func (m *MockRepository) Get(id string, ctx context.Context) (*domain.URL, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -36,6 +50,8 @@ func (m *MockRepository) Get(id string, ctx context.Context) (*domain.URL, error
 	return url, nil
 }
 
+// AddBatch добавляет несколько URL в хранилище в рамках одной транзакции.
+// Использует пакетную вставку для оптимизации производительности.
 func (m *MockRepository) AddBatch(urls []domain.URL, ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -51,6 +67,8 @@ func (m *MockRepository) AddBatch(urls []domain.URL, ctx context.Context) error 
 	return nil
 }
 
+// GetByUserID возвращает все URL, созданные пользователем.
+// Если URL не найдены, возвращает пустой слайс.
 func (m *MockRepository) GetByUserID(ctx context.Context) (*[]domain.URL, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -62,6 +80,8 @@ func (m *MockRepository) GetByUserID(ctx context.Context) (*[]domain.URL, error)
 	return &result, nil
 }
 
+// GetFlagByShortURL проверяет, был ли URL удален.
+// Если URL не найден, возвращает ошибку ErrURLNotFound.
 func (m *MockRepository) GetFlagByShortURL(ctx context.Context, shortenedURL string) (bool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -73,6 +93,8 @@ func (m *MockRepository) GetFlagByShortURL(ctx context.Context, shortenedURL str
 	return url.IsDeleted, nil
 }
 
+// DeleteURLBatch помечает несколько URL как удаленные.
+// Использует пакетное обновление для оптимизации производительности.
 func (m *MockRepository) DeleteURLBatch(ctx context.Context, urls []UserShortURL) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -85,6 +107,7 @@ func (m *MockRepository) DeleteURLBatch(ctx context.Context, urls []UserShortURL
 	return nil
 }
 
+// Close закрывает соединение с хранилищем.
 func (m *MockRepository) Close() error {
 	return nil
 }

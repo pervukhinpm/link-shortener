@@ -1,3 +1,8 @@
+// Package repository предоставляет реализацию интерфейса Repository для работы с базой данных.
+// Включает в себя:
+//   - Работу с PostgreSQL
+//   - Управление соединениями
+//   - Операции с URL
 package repository
 
 import (
@@ -15,15 +20,20 @@ import (
 	"go.uber.org/zap"
 )
 
+// DatabaseRepository реализует интерфейс Repository для работы с PostgreSQL.
+// Использует пул соединений для эффективной работы с базой данных.
 type DatabaseRepository struct {
 	db *pgxpool.Pool
 }
 
+// Close закрывает соединение с базой данных.
 func (dr *DatabaseRepository) Close() error {
 	dr.db.Close()
 	return nil
 }
 
+// NewDatabaseRepository создает новый экземпляр DatabaseRepository.
+// Инициализирует соединение с базой данных и создает необходимые таблицы.
 func NewDatabaseRepository(db *pgxpool.Pool) (*DatabaseRepository, error) {
 	dbRepository := DatabaseRepository{
 		db: db,
@@ -35,6 +45,8 @@ func NewDatabaseRepository(db *pgxpool.Pool) (*DatabaseRepository, error) {
 	return &dbRepository, nil
 }
 
+// Add добавляет новый URL в базу данных.
+// Генерирует UUID для записи и проверяет уникальность оригинального URL.
 func (dr *DatabaseRepository) Add(url *domain.URL, ctx context.Context) error {
 	uuid, err := utils.GenerateUUID()
 	if err != nil {
@@ -73,6 +85,8 @@ func (dr *DatabaseRepository) Add(url *domain.URL, ctx context.Context) error {
 	return nil
 }
 
+// getShortURLByOriginal возвращает короткий URL по оригинальному.
+// Используется для обработки конфликтов при добавлении URL.
 func (dr *DatabaseRepository) getShortURLByOriginal(originalURL string, ctx context.Context) (string, error) {
 	query := `
     SELECT short_url FROM urls WHERE original_url = $1;
@@ -85,6 +99,8 @@ func (dr *DatabaseRepository) getShortURLByOriginal(originalURL string, ctx cont
 	return shortURL, nil
 }
 
+// Get возвращает URL по его короткому идентификатору.
+// Если URL не найден, возвращает ошибку.
 func (dr *DatabaseRepository) Get(id string, ctx context.Context) (*domain.URL, error) {
 	query := `
 	SELECT original_url from urls WHERE short_url = $1;
@@ -101,6 +117,8 @@ func (dr *DatabaseRepository) Get(id string, ctx context.Context) (*domain.URL, 
 	return domain.NewURL(id, originalURL, userID, false), nil
 }
 
+// createDB создает таблицу urls, если она не существует.
+// Определяет структуру хранения URL в базе данных.
 func (dr *DatabaseRepository) createDB() error {
 	query := `
 	CREATE TABLE IF NOT EXISTS urls (
@@ -114,6 +132,8 @@ func (dr *DatabaseRepository) createDB() error {
 	return err
 }
 
+// AddBatch добавляет несколько URL в базу данных в рамках одной транзакции.
+// Использует пакетную вставку для оптимизации производительности.
 func (dr *DatabaseRepository) AddBatch(urls []domain.URL, ctx context.Context) error {
 	tx, err := dr.db.Begin(ctx)
 	if err != nil {
@@ -140,6 +160,8 @@ func (dr *DatabaseRepository) AddBatch(urls []domain.URL, ctx context.Context) e
 	return tx.Commit(ctx)
 }
 
+// GetByUserID возвращает все URL, созданные пользователем.
+// Если URL не найдены, возвращает пустой слайс.
 func (dr *DatabaseRepository) GetByUserID(ctx context.Context) (*[]domain.URL, error) {
 	userID := middleware.GetUserID(ctx)
 
@@ -180,6 +202,8 @@ func (dr *DatabaseRepository) GetByUserID(ctx context.Context) (*[]domain.URL, e
 	return &urls, nil
 }
 
+// GetFlagByShortURL проверяет, был ли URL удален.
+// Если URL не найден, возвращает ошибку ErrURLNotFound.
 func (dr *DatabaseRepository) GetFlagByShortURL(ctx context.Context, shortenedURL string) (bool, error) {
 	query := `
         SELECT is_deleted
@@ -200,6 +224,8 @@ func (dr *DatabaseRepository) GetFlagByShortURL(ctx context.Context, shortenedUR
 	return isDeleted, nil
 }
 
+// DeleteURLBatch помечает несколько URL как удаленные.
+// Использует пакетное обновление для оптимизации производительности.
 func (dr *DatabaseRepository) DeleteURLBatch(ctx context.Context, urls []UserShortURL) error {
 	query := `UPDATE urls SET is_deleted = $1 WHERE user_id = $2 AND short_url = $3;`
 	batch := &pgx.Batch{}

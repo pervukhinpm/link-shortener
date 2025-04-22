@@ -5,13 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+
 	"github.com/pervukhinpm/link-shortener.git/domain"
 	"github.com/pervukhinpm/link-shortener.git/internal/errs"
 	"github.com/pervukhinpm/link-shortener.git/internal/middleware"
 	"github.com/pervukhinpm/link-shortener.git/internal/utils"
-	"os"
 )
 
+// FileRepository реализует интерфейс Repository для работы с файловым хранилищем.
+// Использует JSON для сериализации данных.
 type FileRepository struct {
 	fileName string
 	storage  map[string]URLFileModel
@@ -19,10 +22,13 @@ type FileRepository struct {
 	reader   URLFileReader
 }
 
+// Close закрывает файловое хранилище.
 func (r *FileRepository) Close() error {
 	return r.reader.Close()
 }
 
+// NewFileRepository создает новый экземпляр FileRepository.
+// Инициализирует хранилище и загружает существующие данные.
 func NewFileRepository(fileName string) (*FileRepository, error) {
 	writer, err := NewURLFileWriter(fileName)
 	if err != nil {
@@ -55,6 +61,8 @@ func NewFileRepository(fileName string) (*FileRepository, error) {
 	return repository, nil
 }
 
+// Add добавляет новый URL в файловое хранилище.
+// Проверяет уникальность URL перед добавлением.
 func (r *FileRepository) Add(url *domain.URL, ctx context.Context) error {
 	existingURL, _ := r.Get(url.ID, ctx)
 	if existingURL != nil {
@@ -73,6 +81,8 @@ func (r *FileRepository) Add(url *domain.URL, ctx context.Context) error {
 	return nil
 }
 
+// AddBatch добавляет несколько URL в файловое хранилище.
+// Вызывает Add для каждого URL в пакете.
 func (r *FileRepository) AddBatch(urls []domain.URL, ctx context.Context) error {
 	for _, url := range urls {
 		if err := r.Add(&url, ctx); err != nil {
@@ -82,6 +92,8 @@ func (r *FileRepository) AddBatch(urls []domain.URL, ctx context.Context) error 
 	return nil
 }
 
+// Get возвращает URL по его короткому идентификатору.
+// Если URL не найден, возвращает ошибку.
 func (r *FileRepository) Get(id string, ctx context.Context) (*domain.URL, error) {
 	userID := middleware.GetUserID(ctx)
 	url, exists := r.storage[id]
@@ -91,6 +103,8 @@ func (r *FileRepository) Get(id string, ctx context.Context) (*domain.URL, error
 	return domain.NewURL(id, url.OriginalURL, userID, url.IsDeleted), nil
 }
 
+// GetByUserID возвращает все URL, созданные пользователем.
+// Если URL не найдены, возвращает пустой слайс.
 func (r *FileRepository) GetByUserID(ctx context.Context) (*[]domain.URL, error) {
 	var urls []domain.URL
 
@@ -107,6 +121,8 @@ func (r *FileRepository) GetByUserID(ctx context.Context) (*[]domain.URL, error)
 	return &urls, nil
 }
 
+// DeleteURLBatch помечает несколько URL как удаленные.
+// Перезаписывает файл с обновленными данными.
 func (r *FileRepository) DeleteURLBatch(ctx context.Context, urls []UserShortURL) error {
 	userID := middleware.GetUserID(ctx)
 
@@ -121,10 +137,14 @@ func (r *FileRepository) DeleteURLBatch(ctx context.Context, urls []UserShortURL
 	return r.rewriteFile()
 }
 
+// GetFlagByShortURL проверяет, был ли URL удален.
+// Если URL не найден, возвращает ошибку.
 func (r *FileRepository) GetFlagByShortURL(_ context.Context, shortenedURL string) (bool, error) {
 	return r.storage[shortenedURL].IsDeleted, nil
 }
 
+// rewriteFile перезаписывает файл с текущими данными хранилища.
+// Используется после операций изменения данных.
 func (r *FileRepository) rewriteFile() error {
 	fileWriter, err := NewURLFileWriter(r.fileName)
 	if err != nil {
@@ -142,6 +162,8 @@ func (r *FileRepository) rewriteFile() error {
 	return nil
 }
 
+// URLFileModel представляет структуру для хранения URL в файле.
+// Содержит все необходимые поля для работы с URL.
 type URLFileModel struct {
 	UUID        string `json:"uuid"`
 	UserID      string `json:"user_uuid"`
@@ -150,6 +172,7 @@ type URLFileModel struct {
 	IsDeleted   bool   `json:"is_deleted"`
 }
 
+// NewURLFileModel создает новый экземпляр URLFileModel.
 func NewURLFileModel(uuid, shortURL, originalURL string, isDeleted bool) *URLFileModel {
 	return &URLFileModel{
 		UUID:        uuid,
@@ -159,11 +182,15 @@ func NewURLFileModel(uuid, shortURL, originalURL string, isDeleted bool) *URLFil
 	}
 }
 
+// URLFileWriter реализует запись URL в файл.
+// Использует буферизованную запись для оптимизации производительности.
 type URLFileWriter struct {
 	file   *os.File
 	writer *bufio.Writer
 }
 
+// NewURLFileWriter создает новый экземпляр URLFileWriter.
+// Открывает файл для записи в режиме добавления.
 func NewURLFileWriter(filename string) (*URLFileWriter, error) {
 	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
@@ -175,6 +202,8 @@ func NewURLFileWriter(filename string) (*URLFileWriter, error) {
 	}, nil
 }
 
+// WriteURL записывает URL в файл в формате JSON.
+// Каждая запись добавляется в новую строку.
 func (u *URLFileWriter) WriteURL(fu *URLFileModel) error {
 	data, err := json.Marshal(&fu)
 	if err != nil {
@@ -189,12 +218,16 @@ func (u *URLFileWriter) WriteURL(fu *URLFileModel) error {
 	return u.writer.Flush()
 }
 
+// URLFileReader реализует чтение URL из файла.
+// Использует буферизованное чтение для оптимизации производительности.
 type URLFileReader struct {
 	file          *os.File
 	scanner       *bufio.Scanner
 	URLFileModels []URLFileModel
 }
 
+// NewURLFileReader создает новый экземпляр URLFileReader.
+// Открывает файл для чтения.
 func NewURLFileReader(filename string) (*URLFileReader, error) {
 	file, err := os.OpenFile(filename, os.O_RDONLY|os.O_CREATE, 0666)
 	if err != nil {
@@ -207,6 +240,8 @@ func NewURLFileReader(filename string) (*URLFileReader, error) {
 	}, nil
 }
 
+// ReadURL читает все URL из файла.
+// Парсит JSON и сохраняет данные в память.
 func (u *URLFileReader) ReadURL() error {
 	u.URLFileModels = []URLFileModel{}
 	for u.scanner.Scan() {
@@ -224,6 +259,7 @@ func (u *URLFileReader) ReadURL() error {
 	return nil
 }
 
+// Close закрывает файловый поток.
 func (u *URLFileReader) Close() error {
 	return u.file.Close()
 }

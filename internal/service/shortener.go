@@ -14,23 +14,46 @@ import (
 	"github.com/pervukhinpm/link-shortener.git/internal/repository"
 )
 
+// ShortenerServiceReaderWriter определяет интерфейс для работы с сокращенными URL.
+// Предоставляет методы для создания, поиска, получения и удаления URL.
 type ShortenerServiceReaderWriter interface {
+	// Find ищет URL по его короткому идентификатору.
 	Find(id string, ctx context.Context) (*domain.URL, error)
+	// AddBatch добавляет несколько URL в хранилище.
 	AddBatch(urls []domain.URL, ctx context.Context) error
+	// Shorten создает сокращенный URL из оригинального.
 	Shorten(original string, ctx context.Context) (*domain.URL, error)
+	// GetByUserID возвращает все URL, созданные пользователем.
 	GetByUserID(ctx context.Context) (*[]domain.URL, error)
+	// DeleteURLBatch удаляет несколько URL пользователя.
 	DeleteURLBatch(ctx context.Context, deleteBatch model.DeleteBatch)
+	// GetFlagByShortURL проверяет, был ли URL удален.
 	GetFlagByShortURL(ctx context.Context, shortURL string) (bool, error)
 }
 
+// ShortenerService реализует интерфейс ShortenerServiceReaderWriter.
+// Предоставляет основную бизнес-логику для работы с сокращенными URL.
 type ShortenerService struct {
 	repo repository.Repository
 }
 
+// NewURLService создает новый экземпляр ShortenerService с указанным репозиторием.
 func NewURLService(repo repository.Repository) *ShortenerService {
 	return &ShortenerService{repo: repo}
 }
 
+// Find возвращает URL по его короткому идентификатору.
+// Если URL не найден или помечен как удаленный, возвращает ошибку.
+func (u *ShortenerService) Find(id string, ctx context.Context) (*domain.URL, error) {
+	url, err := u.repo.Get(id, ctx)
+	if err != nil {
+		return nil, err
+	}
+	return url, nil
+}
+
+// Shorten создает новый сокращенный URL из оригинального.
+// Генерирует уникальный короткий идентификатор и сохраняет URL в хранилище.
 func (u *ShortenerService) Shorten(original string, ctx context.Context) (*domain.URL, error) {
 	userID := middleware.GetUserID(ctx)
 	randomBytes := make([]byte, 6)
@@ -46,18 +69,14 @@ func (u *ShortenerService) Shorten(original string, ctx context.Context) (*domai
 	return url, nil
 }
 
+// AddBatch добавляет массив URL в хранилище.
+// Каждому URL присваивается уникальный короткий идентификатор.
 func (u *ShortenerService) AddBatch(urls []domain.URL, ctx context.Context) error {
 	return u.repo.AddBatch(urls, ctx)
 }
 
-func (u *ShortenerService) Find(id string, ctx context.Context) (*domain.URL, error) {
-	url, err := u.repo.Get(id, ctx)
-	if err != nil {
-		return nil, err
-	}
-	return url, nil
-}
-
+// GetByUserID возвращает все URL, созданные пользователем.
+// Если у пользователя нет URL, возвращает пустой слайс.
 func (u *ShortenerService) GetByUserID(ctx context.Context) (*[]domain.URL, error) {
 	url, err := u.repo.GetByUserID(ctx)
 	if err != nil {
@@ -66,6 +85,8 @@ func (u *ShortenerService) GetByUserID(ctx context.Context) (*[]domain.URL, erro
 	return url, nil
 }
 
+// GetFlagByShortURL проверяет, был ли URL удален.
+// Использует контекст с таймаутом для предотвращения зависания.
 func (u *ShortenerService) GetFlagByShortURL(ctx context.Context, shortURL string) (bool, error) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -74,6 +95,8 @@ func (u *ShortenerService) GetFlagByShortURL(ctx context.Context, shortURL strin
 	return isDeleted, err
 }
 
+// DeleteURLBatch асинхронно удаляет URL пользователя.
+// Помечает указанные URL как удаленные в хранилище.
 func (u *ShortenerService) DeleteURLBatch(ctx context.Context, deleteBatch model.DeleteBatch) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -219,7 +242,9 @@ func fanIn(doneCh chan struct{}, resultChs ...chan repository.UserShortURL) chan
 	return finalCh
 }
 
+// DeleteTask представляет задачу на удаление URL.
+// Используется для асинхронной обработки запросов на удаление URL.
 type DeleteTask struct {
-	ShortenedURL string
 	UserID       string
+	ShortenedURL string
 }

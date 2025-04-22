@@ -16,7 +16,7 @@ import (
 func TestCreateShortenerURL(t *testing.T) {
 	urlService := service.NewMockService()
 	baseURL := NewServerURL("http", "localhost", 8080)
-	h := NewHandler(urlService, *baseURL)
+	h := NewShortenerHandler(urlService, *baseURL)
 
 	// Создаем мок логгера
 	logger := zap.NewNop()
@@ -156,7 +156,7 @@ func TestCreateShortenerURL(t *testing.T) {
 func TestGetShortenerURL(t *testing.T) {
 	urlService := service.NewMockService()
 	baseURL := NewServerURL("http", "localhost", 8080)
-	h := NewHandler(urlService, *baseURL)
+	h := NewShortenerHandler(urlService, *baseURL)
 
 	// Создаем мок логгера
 	logger := zap.NewNop()
@@ -246,7 +246,7 @@ func TestGetShortenerURL(t *testing.T) {
 func TestCreateJSONShortenerURL(t *testing.T) {
 	urlService := service.NewMockService()
 	baseURL := NewServerURL("http", "localhost", 8080)
-	h := NewHandler(urlService, *baseURL)
+	h := NewShortenerHandler(urlService, *baseURL)
 
 	type want struct {
 		contentType string
@@ -342,7 +342,7 @@ func TestCreateJSONShortenerURL(t *testing.T) {
 func TestGetURLsByUser(t *testing.T) {
 	urlService := service.NewMockService()
 	baseURL := NewServerURL("http", "localhost", 8080)
-	h := NewHandler(urlService, *baseURL)
+	h := NewShortenerHandler(urlService, *baseURL)
 
 	// Создаем мок логгера
 	logger := zap.NewNop()
@@ -417,7 +417,7 @@ func TestGetURLsByUser(t *testing.T) {
 			}
 
 			rr := httptest.NewRecorder()
-			h.getURLsByUser(rr, req)
+			h.GetURLsByUser(rr, req)
 
 			if status := rr.Code; status != tt.want.statusCode {
 				t.Errorf("handler returned wrong status code: got %v want %v",
@@ -446,7 +446,7 @@ func TestGetURLsByUser(t *testing.T) {
 func TestDeleteURLBatchByUser(t *testing.T) {
 	urlService := service.NewMockService()
 	baseURL := NewServerURL("http", "localhost", 8080)
-	h := NewHandler(urlService, *baseURL)
+	h := NewShortenerHandler(urlService, *baseURL)
 
 	// Создаем мок логгера
 	logger := zap.NewNop()
