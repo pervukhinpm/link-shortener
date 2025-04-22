@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+
 	"github.com/pervukhinpm/link-shortener.git/domain"
 	"github.com/pervukhinpm/link-shortener.git/internal/model"
 )
@@ -40,11 +41,13 @@ func (u *MockShortenerService) AddBatch(urls []domain.URL, ctx context.Context) 
 
 func (u *MockShortenerService) GetByUserID(ctx context.Context) (*[]domain.URL, error) {
 	if u.ShortenURL == nil {
-		return nil, errors.New("shorten service not found")
+		emptyURLs := make([]domain.URL, 0)
+		return &emptyURLs, nil
 	}
 	urls := []domain.URL{*u.ShortenURL}
 	return &urls, nil
 }
+
 func (u *MockShortenerService) GetFlagByShortURL(ctx context.Context, shortURL string) (bool, error) {
 	return false, nil
 }

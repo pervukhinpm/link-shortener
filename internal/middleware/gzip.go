@@ -79,7 +79,8 @@ func Gzip(next http.Handler) http.Handler {
 		}
 
 		contentEncoding := r.Header.Get("Content-Encoding")
-		sendsGzip := strings.Contains(contentEncoding, "gzip")
+		contentType := r.Header.Get("Content-Type")
+		sendsGzip := strings.Contains(contentEncoding, "gzip") || contentType == "application/x-gzip"
 		if sendsGzip {
 			cr, err := newCompressReader(r.Body)
 			if err != nil {

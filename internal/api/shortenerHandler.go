@@ -36,6 +36,12 @@ func (h *ShortenerHandler) CreateShortenerURL(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	contentType := r.Header.Get("Content-Type")
+	if !strings.HasPrefix(contentType, "text/plain") && contentType != "application/x-gzip" {
+		http.Error(w, "Only text/plain or application/x-gzip supported Media Type!", http.StatusBadRequest)
+		return
+	}
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -48,7 +54,6 @@ func (h *ShortenerHandler) CreateShortenerURL(w http.ResponseWriter, r *http.Req
 	}
 
 	shortURL, err := h.urlService.Shorten(string(body), r.Context())
-
 	if err != nil {
 		if existingErr := new(errs.OriginalURLAlreadyExists); errors.As(err, &existingErr) {
 			w.Header().Set("Content-Type", "text/plain")
@@ -59,12 +64,15 @@ func (h *ShortenerHandler) CreateShortenerURL(w http.ResponseWriter, r *http.Req
 			}
 			return
 		}
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		middleware.Log.Error("create shortener failed", zap.Error(err))
+		if shortURL == nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 
-	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusCreated)
 	_, err = fmt.Fprintf(w, "%s/%s", h.baseURL.String(), shortURL.ID)
 	if err != nil {
 		return
@@ -238,6 +246,11 @@ func (h *ShortenerHandler) BatchCreateJSONShortenerURL(w http.ResponseWriter, r 
 }
 
 func (h *ShortenerHandler) getURLsByUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Only GET requests are allowed!", http.StatusBadRequest)
+		return
+	}
+
 	urls, err := h.urlService.GetByUserID(r.Context())
 	if err != nil {
 		middleware.Log.Error("error to get url")
@@ -270,15 +283,16 @@ func (h *ShortenerHandler) getURLsByUser(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *ShortenerHandler) DeleteURLBatchByUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Only DELETE requests are allowed!", http.StatusBadRequest)
+		return
+	}
+
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
 		http.Error(w, "Invalid Content-Type", http.StatusBadRequest)
 		return
 	}
-
-	userID := middleware.GetUserID(r.Context())
-
-	var deleteBatch model.DeleteBatch
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -287,12 +301,27 @@ func (h *ShortenerHandler) DeleteURLBatchByUser(w http.ResponseWriter, r *http.R
 	}
 	defer r.Body.Close()
 
-	err = json.Unmarshal(bodyBytes, &deleteBatch.ShortenedURL)
+	if len(bodyBytes) == 0 {
+		http.Error(w, "Empty request body", http.StatusBadRequest)
+		return
+	}
+
+	var urls []string
+	err = json.Unmarshal(bodyBytes, &urls)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	deleteBatch.UserID = userID
+
+	if len(urls) == 0 {
+		http.Error(w, "Empty URL list", http.StatusBadRequest)
+		return
+	}
+
+	deleteBatch := model.DeleteBatch{
+		UserID:       middleware.GetUserID(r.Context()),
+		ShortenedURL: urls,
+	}
 
 	go h.urlService.DeleteURLBatch(r.Context(), deleteBatch)
 
