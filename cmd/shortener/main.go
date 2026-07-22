@@ -10,6 +10,8 @@ import (
 	"log"
 )
 
+import _ "net/http/pprof"
+
 func main() {
 	middleware.Initialize()
 	config.ParseFlags()
@@ -39,7 +41,7 @@ func main() {
 	}(appRepository)
 
 	urlService := service.NewURLService(appRepository)
-	shortenerHandler := api.NewHandler(urlService, config.ServerConfig.BaseURL)
+	shortenerHandler := api.NewShortenerHandler(urlService, config.ServerConfig.BaseURL)
 	ping := service.NewPingService(database)
 	databaseHandler := api.NewDatabaseHealthHandler(ping)
 	router := api.Router(databaseHandler, shortenerHandler)

@@ -1,10 +1,19 @@
 package api
 
 import (
+	"net/http/pprof"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/pervukhinpm/link-shortener.git/internal/middleware"
 )
 
+// Router создает и настраивает маршрутизатор для обработки HTTP-запросов.
+// Принимает обработчики для проверки состояния базы данных и работы с URL.
+// Включает в себя:
+//   - Middleware для логирования и сжатия gzip
+//   - Эндпоинты для профилирования (pprof)
+//   - Публичные маршруты (без аутентификации)
+//   - Защищенные маршруты (требующие аутентификации)
 func Router(
 	databaseHealthHandler *DatabaseHealthHandler,
 	shortenerHandler *ShortenerHandler,
@@ -13,6 +22,24 @@ func Router(
 
 	r.Use(middleware.Logger)
 	r.Use(middleware.Gzip)
+
+	// Подключаем обработчики pprof
+	// Подключаем pprof-эндпоинты
+	r.Route("/debug/pprof", func(r chi.Router) {
+		r.HandleFunc("/", pprof.Index)
+		r.HandleFunc("/cmdline", pprof.Cmdline)
+		r.HandleFunc("/profile", pprof.Profile)
+		r.HandleFunc("/symbol", pprof.Symbol)
+		r.HandleFunc("/trace", pprof.Trace)
+
+		// Добавляем обработку всех стандартных pprof-метрик
+		r.HandleFunc("/allocs", pprof.Handler("allocs").ServeHTTP)
+		r.HandleFunc("/block", pprof.Handler("block").ServeHTTP)
+		r.HandleFunc("/goroutine", pprof.Handler("goroutine").ServeHTTP)
+		r.HandleFunc("/heap", pprof.Handler("heap").ServeHTTP)
+		r.HandleFunc("/mutex", pprof.Handler("mutex").ServeHTTP)
+		r.HandleFunc("/threadcreate", pprof.Handler("threadcreate").ServeHTTP)
+	})
 
 	// Публичные маршруты (без аутентификации)
 	r.Group(func(r chi.Router) {
@@ -27,7 +54,7 @@ func Router(
 		r.Get("/{id}", shortenerHandler.GetShortenerURL)
 		r.Post("/api/shorten", shortenerHandler.CreateJSONShortenerURL)
 		r.Post("/api/shorten/batch", shortenerHandler.BatchCreateJSONShortenerURL)
-		r.Get("/api/user/urls", shortenerHandler.getURLsByUser)
+		r.Get("/api/user/urls", shortenerHandler.GetURLsByUser)
 		r.Delete("/api/user/urls", shortenerHandler.DeleteURLBatchByUser)
 	})
 

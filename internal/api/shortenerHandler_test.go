@@ -1,19 +1,26 @@
 package api
 
 import (
-	"github.com/pervukhinpm/link-shortener.git/domain"
-	"github.com/pervukhinpm/link-shortener.git/internal/service"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/pervukhinpm/link-shortener.git/domain"
+	"github.com/pervukhinpm/link-shortener.git/internal/middleware"
+	"github.com/pervukhinpm/link-shortener.git/internal/service"
+	"go.uber.org/zap"
 )
 
 func TestCreateShortenerURL(t *testing.T) {
 	urlService := service.NewMockService()
 	baseURL := NewServerURL("http", "localhost", 8080)
-	h := NewHandler(urlService, *baseURL)
+	h := NewShortenerHandler(urlService, *baseURL)
+
+	// Создаем мок логгера
+	logger := zap.NewNop()
+	middleware.Log = logger.Sugar()
 
 	type want struct {
 		contentType string
@@ -25,12 +32,16 @@ func TestCreateShortenerURL(t *testing.T) {
 		name              string
 		urlServiceShortID string
 		contentType       string
+		method            string
+		setNilURL         bool
 		want              want
 	}{
 		{
 			name:              "positive test #1",
 			urlServiceShortID: "testShortID",
 			contentType:       "text/plain",
+			method:            http.MethodPost,
+			setNilURL:         false,
 			want: want{
 				contentType: "text/plain",
 				bodyURL:     "https://practicum.yandex.ru/",
@@ -42,9 +53,50 @@ func TestCreateShortenerURL(t *testing.T) {
 			name:              "empty body test #2",
 			urlServiceShortID: "",
 			contentType:       "text/plain",
+			method:            http.MethodPost,
+			setNilURL:         false,
 			want: want{
 				contentType: "text/plain",
 				bodyURL:     "",
+				statusCode:  http.StatusBadRequest,
+				response:    "",
+			},
+		},
+		{
+			name:              "wrong HTTP method",
+			urlServiceShortID: "testShortID",
+			contentType:       "text/plain",
+			method:            http.MethodGet,
+			setNilURL:         false,
+			want: want{
+				contentType: "text/plain",
+				bodyURL:     "https://practicum.yandex.ru/",
+				statusCode:  http.StatusBadRequest,
+				response:    "",
+			},
+		},
+		{
+			name:              "service error",
+			urlServiceShortID: "testShortID",
+			contentType:       "text/plain",
+			method:            http.MethodPost,
+			setNilURL:         true,
+			want: want{
+				contentType: "text/plain",
+				bodyURL:     "https://practicum.yandex.ru/",
+				statusCode:  http.StatusBadRequest,
+				response:    "",
+			},
+		},
+		{
+			name:              "invalid content type",
+			urlServiceShortID: "testShortID",
+			contentType:       "application/json",
+			method:            http.MethodPost,
+			setNilURL:         false,
+			want: want{
+				contentType: "text/plain",
+				bodyURL:     "https://practicum.yandex.ru/",
 				statusCode:  http.StatusBadRequest,
 				response:    "",
 			},
@@ -53,14 +105,18 @@ func TestCreateShortenerURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := strings.NewReader(tt.want.bodyURL)
-			req, err := http.NewRequest(http.MethodPost, "http://localhost:8080/", body)
+			req, err := http.NewRequest(tt.method, "http://localhost:8080/", body)
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			req.Header.Set("Content-Type", tt.contentType)
 
-			urlService.ShortenURL = domain.NewURL(tt.urlServiceShortID, tt.want.bodyURL, "", false)
+			if tt.setNilURL {
+				urlService.ShortenURL = nil
+			} else {
+				urlService.ShortenURL = domain.NewURL(tt.urlServiceShortID, tt.want.bodyURL, "", false)
+			}
 
 			buf, err := io.ReadAll(req.Body)
 			if err != nil {
@@ -100,7 +156,11 @@ func TestCreateShortenerURL(t *testing.T) {
 func TestGetShortenerURL(t *testing.T) {
 	urlService := service.NewMockService()
 	baseURL := NewServerURL("http", "localhost", 8080)
-	h := NewHandler(urlService, *baseURL)
+	h := NewShortenerHandler(urlService, *baseURL)
+
+	// Создаем мок логгера
+	logger := zap.NewNop()
+	middleware.Log = logger.Sugar()
 
 	type want struct {
 		statusCode int
@@ -109,31 +169,61 @@ func TestGetShortenerURL(t *testing.T) {
 	tests := []struct {
 		name    string
 		shortID string
+		method  string
 		want    want
 	}{
 		{
 			name:    "positive test #1",
 			shortID: "shortID",
+			method:  http.MethodGet,
 			want: want{
 				statusCode: http.StatusTemporaryRedirect,
 				location:   "https://practicum.yandex.ru/",
+			},
+		},
+		{
+			name:    "not found URL",
+			shortID: "nonexistent",
+			method:  http.MethodGet,
+			want: want{
+				statusCode: http.StatusBadRequest,
+				location:   "",
+			},
+		},
+		{
+			name:    "wrong HTTP method",
+			shortID: "shortID",
+			method:  http.MethodPost,
+			want: want{
+				statusCode: http.StatusBadRequest,
+				location:   "",
+			},
+		},
+		{
+			name:    "empty shortID",
+			shortID: "",
+			method:  http.MethodGet,
+			want: want{
+				statusCode: http.StatusBadRequest,
+				location:   "",
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			testURL := &domain.URL{
 				ID:          tt.shortID,
 				OriginalURL: "https://practicum.yandex.ru/",
 			}
 
-			if tt.shortID != "" {
+			if tt.shortID == "shortID" {
 				urlService.ShortenURL = testURL
+			} else {
+				urlService.ShortenURL = nil
 			}
 
-			req, err := http.NewRequest(http.MethodGet, "/"+tt.shortID, nil)
+			req, err := http.NewRequest(tt.method, "/"+tt.shortID, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -156,7 +246,7 @@ func TestGetShortenerURL(t *testing.T) {
 func TestCreateJSONShortenerURL(t *testing.T) {
 	urlService := service.NewMockService()
 	baseURL := NewServerURL("http", "localhost", 8080)
-	h := NewHandler(urlService, *baseURL)
+	h := NewShortenerHandler(urlService, *baseURL)
 
 	type want struct {
 		contentType string
@@ -244,6 +334,214 @@ func TestCreateJSONShortenerURL(t *testing.T) {
 			if rr.Body.String() != tt.want.response {
 				t.Errorf("handler returned unexpected body: got %v want %v",
 					rr.Body.String(), tt.want.response)
+			}
+		})
+	}
+}
+
+func TestGetURLsByUser(t *testing.T) {
+	urlService := service.NewMockService()
+	baseURL := NewServerURL("http", "localhost", 8080)
+	h := NewShortenerHandler(urlService, *baseURL)
+
+	// Создаем мок логгера
+	logger := zap.NewNop()
+	middleware.Log = logger.Sugar()
+
+	type want struct {
+		statusCode  int
+		contentType string
+		response    string
+	}
+
+	tests := []struct {
+		name   string
+		url    *domain.URL
+		method string
+		want   want
+	}{
+		{
+			name: "positive test with URL",
+			url: &domain.URL{
+				ID:          "short1",
+				OriginalURL: "https://example.com/1",
+			},
+			method: http.MethodGet,
+			want: want{
+				statusCode:  http.StatusOK,
+				contentType: "application/json",
+				response:    `[{"short_url":"http://localhost:8080/short1","original_url":"https://example.com/1"}]`,
+			},
+		},
+		{
+			name:   "no URLs found",
+			url:    nil,
+			method: http.MethodGet,
+			want: want{
+				statusCode: http.StatusNoContent,
+			},
+		},
+		{
+			name: "wrong HTTP method",
+			url: &domain.URL{
+				ID:          "short1",
+				OriginalURL: "https://example.com/1",
+			},
+			method: http.MethodPost,
+			want: want{
+				statusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			name: "malformed URL in response",
+			url: &domain.URL{
+				ID:          "short1",
+				OriginalURL: "not a valid url",
+			},
+			method: http.MethodGet,
+			want: want{
+				statusCode:  http.StatusOK,
+				contentType: "application/json",
+				response:    `[{"short_url":"http://localhost:8080/short1","original_url":"not a valid url"}]`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			urlService.ShortenURL = tt.url
+
+			req, err := http.NewRequest(tt.method, "/api/user/urls", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			rr := httptest.NewRecorder()
+			h.GetURLsByUser(rr, req)
+
+			if status := rr.Code; status != tt.want.statusCode {
+				t.Errorf("handler returned wrong status code: got %v want %v",
+					status, tt.want.statusCode)
+			}
+
+			if tt.want.contentType != "" {
+				if contentType := rr.Header().Get("Content-Type"); contentType != tt.want.contentType {
+					t.Errorf("handler returned wrong content type: got %v want %v",
+						contentType, tt.want.contentType)
+				}
+			}
+
+			if tt.want.response != "" {
+				got := strings.TrimSpace(rr.Body.String())
+				want := strings.TrimSpace(tt.want.response)
+				if got != want {
+					t.Errorf("handler returned unexpected body: got %v want %v",
+						got, want)
+				}
+			}
+		})
+	}
+}
+
+func TestDeleteURLBatchByUser(t *testing.T) {
+	urlService := service.NewMockService()
+	baseURL := NewServerURL("http", "localhost", 8080)
+	h := NewShortenerHandler(urlService, *baseURL)
+
+	// Создаем мок логгера
+	logger := zap.NewNop()
+	middleware.Log = logger.Sugar()
+
+	type want struct {
+		statusCode int
+	}
+
+	tests := []struct {
+		name        string
+		requestBody string
+		contentType string
+		method      string
+		want        want
+	}{
+		{
+			name:        "valid delete request",
+			requestBody: `["short1", "short2"]`,
+			contentType: "application/json",
+			method:      http.MethodDelete,
+			want: want{
+				statusCode: http.StatusAccepted,
+			},
+		},
+		{
+			name:        "invalid content type",
+			requestBody: `["short1", "short2"]`,
+			contentType: "text/plain",
+			method:      http.MethodDelete,
+			want: want{
+				statusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			name:        "invalid JSON",
+			requestBody: `["short1", "short2"`,
+			contentType: "application/json",
+			method:      http.MethodDelete,
+			want: want{
+				statusCode: http.StatusInternalServerError,
+			},
+		},
+		{
+			name:        "wrong HTTP method",
+			requestBody: `["short1", "short2"]`,
+			contentType: "application/json",
+			method:      http.MethodPost,
+			want: want{
+				statusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			name:        "empty request body",
+			requestBody: ``,
+			contentType: "application/json",
+			method:      http.MethodDelete,
+			want: want{
+				statusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			name:        "empty array",
+			requestBody: `[]`,
+			contentType: "application/json",
+			method:      http.MethodDelete,
+			want: want{
+				statusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			name:        "invalid URL format",
+			requestBody: `[123, 456]`,
+			contentType: "application/json",
+			method:      http.MethodDelete,
+			want: want{
+				statusCode: http.StatusInternalServerError,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequest(tt.method, "/api/user/urls", strings.NewReader(tt.requestBody))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Content-Type", tt.contentType)
+
+			rr := httptest.NewRecorder()
+			h.DeleteURLBatchByUser(rr, req)
+
+			if status := rr.Code; status != tt.want.statusCode {
+				t.Errorf("handler returned wrong status code: got %v want %v",
+					status, tt.want.statusCode)
 			}
 		})
 	}

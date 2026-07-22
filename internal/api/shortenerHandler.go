@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/pervukhinpm/link-shortener.git/domain"
 	"github.com/pervukhinpm/link-shortener.git/internal/errs"
@@ -12,26 +16,39 @@ import (
 	"github.com/pervukhinpm/link-shortener.git/internal/model"
 	"github.com/pervukhinpm/link-shortener.git/internal/service"
 	"go.uber.org/zap"
-	"io"
-	"net/http"
-	"strings"
 )
 
+// ShortenerHandler представляет обработчик HTTP-запросов для работы с URL.
+// Обеспечивает обработку запросов на создание, получение и удаление URL.
 type ShortenerHandler struct {
+	// urlService - сервис для работы с URL
 	urlService service.ShortenerServiceReaderWriter
-	baseURL    ServerURL
+	// baseURL - базовый URL сервера
+	baseURL ServerURL
 }
 
-func NewHandler(urlService service.ShortenerServiceReaderWriter, baseURL ServerURL) *ShortenerHandler {
+// NewShortenerHandler создает новый экземпляр ShortenerHandler.
+// Принимает сервис для работы с URL и базовый URL сервера.
+func NewShortenerHandler(urlService service.ShortenerServiceReaderWriter, baseURL ServerURL) *ShortenerHandler {
 	return &ShortenerHandler{
 		urlService: urlService,
 		baseURL:    baseURL,
 	}
 }
 
+// CreateShortenerURL обрабатывает POST-запрос на создание нового сокращенного URL.
+// Принимает оригинальный URL в теле запроса.
+// Возвращает сокращенный URL в формате "baseURL/shortID".
+// В случае ошибки возвращает соответствующий HTTP-статус.
 func (h *ShortenerHandler) CreateShortenerURL(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST requests are allowed!", http.StatusBadRequest)
+		return
+	}
+
+	contentType := r.Header.Get("Content-Type")
+	if !strings.HasPrefix(contentType, "text/plain") && contentType != "application/x-gzip" {
+		http.Error(w, "Only text/plain or application/x-gzip supported Media Type!", http.StatusBadRequest)
 		return
 	}
 
@@ -47,7 +64,6 @@ func (h *ShortenerHandler) CreateShortenerURL(w http.ResponseWriter, r *http.Req
 	}
 
 	shortURL, err := h.urlService.Shorten(string(body), r.Context())
-
 	if err != nil {
 		if existingErr := new(errs.OriginalURLAlreadyExists); errors.As(err, &existingErr) {
 			w.Header().Set("Content-Type", "text/plain")
@@ -58,18 +74,25 @@ func (h *ShortenerHandler) CreateShortenerURL(w http.ResponseWriter, r *http.Req
 			}
 			return
 		}
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+		middleware.Log.Error("create shortener failed", zap.Error(err))
+		if shortURL == nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 
-	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusCreated)
 	_, err = fmt.Fprintf(w, "%s/%s", h.baseURL.String(), shortURL.ID)
 	if err != nil {
 		return
 	}
 }
 
+// GetShortenerURL обрабатывает GET-запрос для получения оригинального URL по сокращенному.
+// Принимает короткий идентификатор URL в пути запроса.
+// В случае успеха выполняет редирект на оригинальный URL.
+// Если URL не найден или удален, возвращает соответствующий HTTP-статус.
 func (h *ShortenerHandler) GetShortenerURL(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Only GET requests are allowed!", http.StatusBadRequest)
@@ -97,6 +120,12 @@ func (h *ShortenerHandler) GetShortenerURL(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusTemporaryRedirect)
 }
 
+// CreateJSONShortenerURL обрабатывает POST-запросы на создание сокращенного URL в формате JSON.
+// Принимает JSON-запросы с оригинальным URL в теле.
+// Возвращает:
+//   - 201 Created: URL успешно сокращен
+//   - 400 Bad Request: Неверный JSON или пустой URL
+//   - 409 Conflict: URL уже существует
 func (h *ShortenerHandler) CreateJSONShortenerURL(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST requests are allowed!", http.StatusBadRequest)
@@ -170,6 +199,11 @@ func (h *ShortenerHandler) CreateJSONShortenerURL(w http.ResponseWriter, r *http
 	}
 }
 
+// BatchCreateJSONShortenerURL обрабатывает POST-запросы на создание нескольких сокращенных URL пакетом.
+// Принимает JSON-запросы с массивом URL для сокращения.
+// Возвращает:
+//   - 201 Created: URL успешно сокращены
+//   - 400 Bad Request: Неверный JSON или пустые URL
 func (h *ShortenerHandler) BatchCreateJSONShortenerURL(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST requests are allowed!", http.StatusBadRequest)
@@ -236,10 +270,13 @@ func (h *ShortenerHandler) BatchCreateJSONShortenerURL(w http.ResponseWriter, r 
 	}
 }
 
-func (h *ShortenerHandler) getURLsByUser(w http.ResponseWriter, r *http.Request) {
-	_, err := r.Cookie(middleware.CookieName)
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
+// GetURLsByUser обрабатывает GET-запрос для получения списка URL пользователя.
+// Проверяет наличие cookie с идентификатором пользователя.
+// Если URL не найдены, возвращает статус 204 No Content.
+// В случае ошибки возвращает 500 Internal Server Error.
+func (h *ShortenerHandler) GetURLsByUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Only GET requests are allowed!", http.StatusBadRequest)
 		return
 	}
 
@@ -249,17 +286,18 @@ func (h *ShortenerHandler) getURLsByUser(w http.ResponseWriter, r *http.Request)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	if urls == nil || len(*urls) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	var shortURLBatch []model.URLByUserBatchResponseItem
 	for _, url := range *urls {
 		shortURLBatch = append(shortURLBatch, model.URLByUserBatchResponseItem{
 			ShortURL:    fmt.Sprintf("%s/%s", h.baseURL.String(), url.ID),
 			OriginalURL: url.OriginalURL,
 		})
-	}
-
-	if len(shortURLBatch) == 0 {
-		w.WriteHeader(http.StatusNoContent)
-		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -273,16 +311,22 @@ func (h *ShortenerHandler) getURLsByUser(w http.ResponseWriter, r *http.Request)
 	}
 }
 
+// DeleteURLBatchByUser обрабатывает DELETE-запросы на удаление нескольких сокращенных URL.
+// Принимает JSON-запросы с массивом URL для удаления.
+// Возвращает:
+//   - 202 Accepted: URL запланированы к удалению
+//   - 400 Bad Request: Неверный JSON или пустые URL
 func (h *ShortenerHandler) DeleteURLBatchByUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Only DELETE requests are allowed!", http.StatusBadRequest)
+		return
+	}
+
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
 		http.Error(w, "Invalid Content-Type", http.StatusBadRequest)
 		return
 	}
-
-	userID := middleware.GetUserID(r.Context())
-
-	var deleteBatch model.DeleteBatch
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -291,12 +335,27 @@ func (h *ShortenerHandler) DeleteURLBatchByUser(w http.ResponseWriter, r *http.R
 	}
 	defer r.Body.Close()
 
-	err = json.Unmarshal(bodyBytes, &deleteBatch.ShortenedURL)
+	if len(bodyBytes) == 0 {
+		http.Error(w, "Empty request body", http.StatusBadRequest)
+		return
+	}
+
+	var urls []string
+	err = json.Unmarshal(bodyBytes, &urls)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	deleteBatch.UserID = userID
+
+	if len(urls) == 0 {
+		http.Error(w, "Empty URL list", http.StatusBadRequest)
+		return
+	}
+
+	deleteBatch := model.DeleteBatch{
+		UserID:       middleware.GetUserID(r.Context()),
+		ShortenedURL: urls,
+	}
 
 	go h.urlService.DeleteURLBatch(r.Context(), deleteBatch)
 
